@@ -33,7 +33,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
 }
 
 export default function Layout() {
-  const { storageOk } = useStore();
+  const { storageOk, remote } = useStore();
   const nav = useNavigate();
   const { pathname } = useLocation();
   const [q, setQ] = useState("");
@@ -75,7 +75,7 @@ export default function Layout() {
         </div>
         <footer className="footer">
           <span className="footer-tag">♠ GOOD GAMES · BETTER PEOPLE.</span>
-          <span className="faint">{storageOk ? "Saved on this device" : "Storage unavailable: changes will not persist"}</span>
+          <span className="faint">{remote ? "Shared database · live on every phone" : storageOk ? "Saved on this device" : "Storage unavailable: changes will not persist"}</span>
         </footer>
       </main>
 

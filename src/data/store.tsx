@@ -1,6 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
+import type { Session } from "@supabase/supabase-js";
 import type { Attendance, DB, Distribution, FinancialEntry, Game, Player, Settings } from "../types";
 import { buildSeed } from "./seed";
+import { REMOTE_ENABLED, supabase } from "../lib/supabase";
+import { loadRemote, myProfile, persist, remoteIsEmpty, replaceAll, type Profile } from "./remote";
 
 const KEY = "cambo-poker:v2";
 
@@ -15,7 +18,7 @@ export type Action =
   | { type: "distribution:verify"; id: string; verification: Distribution["verification"] }
   | { type: "game:resolveNote"; id: string; index: number };
 
-function reducer(db: DB, a: Action): DB {
+export function reducer(db: DB, a: Action): DB {
   switch (a.type) {
     case "replace": return a.db;
     case "settings": return { ...db, settings: a.settings };
@@ -56,6 +59,7 @@ function reducer(db: DB, a: Action): DB {
         ...db, attendance,
         players: db.players.filter((p) => p.id !== gone.id).map((p) => (p.id === keep.id ? merged : p)),
         games: db.games.map((g) => (g.dealerPlayerId === gone.id ? { ...g, dealerPlayerId: keep.id } : g)),
+        entries: db.entries.map((e) => (e.dealerPlayerId === gone.id ? { ...e, dealerPlayerId: keep.id } : e)),
       };
     }
     case "entry:verify":
@@ -68,10 +72,26 @@ function reducer(db: DB, a: Action): DB {
   }
 }
 
-export interface Store { db: DB; dispatch: (a: Action) => void; storageOk: boolean }
+export type Status = "loading" | "signed_out" | "pending" | "ready" | "error";
+
+export interface Store {
+  db: DB;
+  dispatch: (a: Action) => void;
+  remote: boolean;
+  status: Status;
+  session: Session | null;
+  profile: Profile | null;
+  error: string | null;
+  syncError: string | null;
+  storageOk: boolean;
+  refresh: () => Promise<void>;
+  signOut: () => Promise<void>;
+}
 const Ctx = createContext<Store | null>(null);
 
-function load(): { db: DB; ok: boolean } {
+const EMPTY: DB = { ...buildSeed(), games: [], players: [], attendance: [], entries: [], distributions: [] };
+
+function loadLocal(): { db: DB; ok: boolean } {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
@@ -87,12 +107,67 @@ function load(): { db: DB; ok: boolean } {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [init] = useMemo(() => [load()], []);
-  const [db, dispatch] = useReducer(reducer, init.db);
+  const remote = REMOTE_ENABLED;
+  const [init] = useMemo(() => [remote ? { db: EMPTY, ok: true } : loadLocal()], [remote]);
+  const [db, rawDispatch] = useReducer(reducer, init.db);
+  const dbRef = useRef(db);
+  dbRef.current = db;
+  const [status, setStatus] = useState<Status>(remote ? "loading" : "ready");
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
   useEffect(() => {
+    if (remote) return;
     try { localStorage.setItem(KEY, JSON.stringify(db)); } catch { /* reported via storageOk */ }
-  }, [db]);
-  const value = useMemo(() => ({ db, dispatch, storageOk: init.ok }), [db, init.ok]);
+  }, [db, remote]);
+
+  const refresh = useCallback(async () => {
+    if (!remote) return;
+    try {
+      const p = await myProfile();
+      setProfile(p);
+      if (!p) { setStatus("signed_out"); return; }
+      if (!p.approved) { setStatus("pending"); return; }
+      if (await remoteIsEmpty()) await replaceAll(buildSeed()); // first ever load: bring in the 28 recorded games
+      rawDispatch({ type: "replace", db: await loadRemote() });
+      setError(null);
+      setStatus("ready");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setStatus("error");
+    }
+  }, [remote]);
+
+  useEffect(() => {
+    if (!remote) return;
+    const sb = supabase();
+    sb.auth.getSession().then(({ data }) => { setSession(data.session); if (!data.session) setStatus("signed_out"); else void refresh(); });
+    const { data: sub } = sb.auth.onAuthStateChange((_evt, s) => {
+      setSession(s);
+      if (!s) { setStatus("signed_out"); setProfile(null); rawDispatch({ type: "replace", db: EMPTY }); }
+      else void refresh();
+    });
+    const onFocus = () => { if (document.visibilityState === "visible" && dbRef.current.games.length) void refresh(); };
+    document.addEventListener("visibilitychange", onFocus);
+    return () => { sub.subscription.unsubscribe(); document.removeEventListener("visibilitychange", onFocus); };
+  }, [remote, refresh]);
+
+  const dispatch = useCallback((a: Action) => {
+    const prev = dbRef.current;
+    const next = reducer(prev, a);
+    rawDispatch(a);
+    if (!remote) return;
+    persist(a, prev, next)
+      .then(() => setSyncError(null))
+      .catch((e) => { setSyncError(e instanceof Error ? e.message : String(e)); void refresh(); });
+  }, [remote, refresh]);
+
+  const signOut = useCallback(async () => { if (remote) await supabase().auth.signOut(); }, [remote]);
+
+  const value = useMemo<Store>(() => ({ db, dispatch, remote, status, session, profile, error, syncError, storageOk: init.ok, refresh, signOut }),
+    [db, dispatch, remote, status, session, profile, error, syncError, init.ok, refresh, signOut]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

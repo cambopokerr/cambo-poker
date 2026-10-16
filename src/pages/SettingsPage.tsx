@@ -1,12 +1,13 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "../data/store";
 import { buildSeed } from "../data/seed";
+import { listProfiles, removeProfile, setApproved, type Profile } from "../data/remote";
 import { download } from "../lib/csv";
 import type { DB } from "../types";
 import { Card, ConfirmDialog, Field } from "../components/ui";
 
 export default function SettingsPage() {
-  const { db, dispatch, storageOk } = useStore();
+  const { db, dispatch, storageOk, remote, profile, signOut, syncError, refresh } = useStore();
   const s = db.settings;
   const [name, setName] = useState(s.businessName);
   const [hosts, setHosts] = useState(s.hosts.join(", "));
@@ -15,7 +16,12 @@ export default function SettingsPage() {
   const [dealerDefault, setDealerDefault] = useState(s.dealerPaidFromRakeByDefault);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [people, setPeople] = useState<Profile[]>([]);
+  const [removeId, setRemoveId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadPeople = () => { if (remote) listProfiles().then(setPeople).catch((e) => setMsg(e.message)); };
+  useEffect(loadPeople, [remote]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = () => {
     const hs = hosts.split(",").map((x) => x.trim()).filter(Boolean);
@@ -44,9 +50,11 @@ export default function SettingsPage() {
 
   return (
     <>
-      <div className="page-head"><div><h1>Settings</h1><div className="sub">Business details, profit split, accounting rules and your data.</div></div></div>
-      {msg && <Card className="stack-item"><p style={{ margin: 0 }}>{msg}</p></Card>}
-      <div className="grid grid-2" style={{ marginTop: msg ? 16 : 0 }}>
+      <div className="page-head"><div><h1>Settings</h1><div className="sub">Business details, profit split, accounting rules, access and your data.</div></div>
+        {remote && <div className="actions"><button className="btn" onClick={() => void signOut()}>Sign out{profile?.email ? ` (${profile.email})` : ""}</button></div>}
+      </div>
+      {(msg || syncError) && <Card className="stack-item"><p style={{ margin: 0 }} className={syncError ? "error" : undefined}>{syncError ? `A change did not reach the server: ${syncError}. The latest server copy has been reloaded.` : msg}</p></Card>}
+      <div className="grid grid-2" style={{ marginTop: msg || syncError ? 16 : 0 }}>
         <Card title="Business & split">
           <div className="form-grid">
             <Field label="Business name" className="span-2"><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
@@ -66,29 +74,60 @@ export default function SettingsPage() {
             <li><strong>Dealer earnings</strong> reduce profit only when marked “paid from rake”. Tips kept by the dealer are reported, never deducted.</li>
             <li><strong>Net distributable</strong> = rake + adjustments − expenses − dealer paid from rake.</li>
             <li><strong>Shares</strong> = net distributable × each host's percentage.</li>
-            <li>A game is <strong>Reconciled</strong> only when every amount is verified, it has a usable date, no open questions remain, and any recorded split is within the tolerance of the computed net.</li>
-            <li><strong>Verified totals</strong> include only verified entries and reconciled games. Flagged amounts are always shown separately.</li>
+            <li>A game is <strong>Completed</strong> only when every amount is verified, it has a usable date, no open questions remain, and any recorded split is within the tolerance of the computed net.</li>
+            <li><strong>Verified totals</strong> include only verified entries and completed games. Flagged amounts are always shown separately.</li>
           </ol>
         </Card>
 
+        {remote && (
+          <Card title="People with access" actions={<button className="btn btn-sm" onClick={loadPeople}>Refresh</button>}>
+            {people.length ? (
+              <div className="table-wrap"><table className="table">
+                <thead><tr><th>Email</th><th>Since</th><th>Status</th><th /></tr></thead>
+                <tbody>
+                  {people.map((p) => (
+                    <tr key={p.user_id}>
+                      <td>{p.email}{p.user_id === profile?.user_id && <span className="faint"> (you)</span>}</td>
+                      <td className="muted">{new Date(p.created_at).toLocaleDateString("en-AU")}</td>
+                      <td>{p.approved ? <span className="badge badge-reconciled">Approved</span> : <span className="badge badge-needs_review">Waiting</span>}</td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        {!p.approved && <button className="btn btn-sm btn-primary" onClick={() => setApproved(p.user_id, true).then(loadPeople).catch((e) => setMsg(e.message))}>Approve</button>}{" "}
+                        {p.user_id !== profile?.user_id && <button className="btn btn-sm btn-danger" onClick={() => setRemoveId(p.user_id)}>Remove</button>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+            ) : <p className="muted">Loading…</p>}
+            <p className="rule" style={{ marginTop: 10 }}>Anyone who signs in appears here as Waiting until someone with access approves them. The very first account is approved automatically.</p>
+          </Card>
+        )}
+
         <Card title="Data">
           <p className="rule">
-            {storageOk
-              ? "Records are saved in this browser's local storage and survive refreshes. They are not synced to other devices or people. Export a backup before clearing browser data, and import it on another device to move your records."
-              : "Local storage is unavailable in this browser, so changes will be lost on refresh. Export a backup after making changes."}
+            {remote
+              ? "Records are saved in the shared Cambo Poker database and every signed-in phone sees the same games. Export a backup any time; Import replaces everything in the database with the file."
+              : storageOk
+                ? "Records are saved in this browser's local storage and survive refreshes. They are not synced to other devices or people. Export a backup before clearing browser data, and import it on another device to move your records."
+                : "Local storage is unavailable in this browser, so changes will be lost on refresh. Export a backup after making changes."}
           </p>
           <div className="card-actions" style={{ marginTop: 10 }}>
             <button className="btn" onClick={exportJSON}>Export backup (JSON)</button>
             <button className="btn" onClick={() => fileRef.current?.click()}>Import backup</button>
             <input ref={fileRef} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importJSON(e.target.files[0])} />
+            {remote && <button className="btn" onClick={() => void refresh()}>Reload from server</button>}
             <button className="btn btn-danger" onClick={() => setConfirmReset(true)}>Reset to imported notes</button>
           </div>
-          <p className="rule" style={{ marginTop: 10 }}>Reset restores the 28 games exactly as imported from the original notes and discards every change made since.</p>
+          <p className="rule" style={{ marginTop: 10 }}>Reset restores the 28 games exactly as imported from the original notes and discards every change made since{remote ? ", for everyone" : ""}.</p>
         </Card>
       </div>
       {confirmReset && (
-        <ConfirmDialog title="Reset all data?" confirmLabel="Reset" message="This replaces everything with the original imported notes. Any games, players or corrections you have added will be lost. Export a backup first if unsure."
+        <ConfirmDialog title="Reset all data?" confirmLabel="Reset" message={`This replaces everything with the original imported notes${remote ? " in the shared database, for every phone" : ""}. Any games, players or corrections added since will be lost. Export a backup first if unsure.`}
           onCancel={() => setConfirmReset(false)} onConfirm={() => { dispatch({ type: "replace", db: buildSeed() }); setConfirmReset(false); setMsg("Data reset to the imported notes."); }} />
+      )}
+      {removeId && (
+        <ConfirmDialog title="Remove access?" confirmLabel="Remove" message="This person will no longer be able to open the app. They can sign in again and wait for approval."
+          onCancel={() => setRemoveId(null)} onConfirm={() => { removeProfile(removeId).then(loadPeople).catch((e) => setMsg(e.message)); setRemoveId(null); }} />
       )}
     </>
   );
