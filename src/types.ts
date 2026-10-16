@@ -88,7 +88,7 @@ export interface PlayerTransaction {
   id: ID;
   gameId: ID;
   playerId: ID;
-  kind: "buy_in" | "cash_out";
+  kind: "buy_in" | "rebuy" | "cash_out";
   amount: number;
   at: string;
   notes?: string;

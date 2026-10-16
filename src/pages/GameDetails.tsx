@@ -128,7 +128,7 @@ export default function GameDetails() {
                   <td><Initial name={p?.name ?? "?"} />{p?.name ?? "?"}{p?.isHost && <> <span className="badge badge-host badge-plain">Host</span></>}{game.dealerPlayerId === a.playerId && <> <span className="badge badge-neutral badge-plain">Dealer</span></>}</td>
                   <td className="muted">{a.arrival || game.startTime || "–"}</td>
                   <td className="muted">{a.departure || game.finishTime || "–"}</td>
-                  <td className="num">{results.get(a.playerId)?.buyIns ? money(results.get(a.playerId)!.buyIns, true) : <span className="faint">–</span>}</td>
+                  <td className="num">{results.get(a.playerId)?.buyIns ? <>{money(results.get(a.playerId)!.buyIns, true)}{results.get(a.playerId)!.rebuyCount ? <span className="faint"> · {results.get(a.playerId)!.rebuyCount} rebuy{results.get(a.playerId)!.rebuyCount === 1 ? "" : "s"}</span> : null}</> : <span className="faint">–</span>}</td>
                   <td className="num">{results.get(a.playerId)?.cashOut != null ? money(results.get(a.playerId)!.cashOut!, true) : <span className="faint">–</span>}</td>
                   <td className={`num ${results.get(a.playerId)?.net == null ? "" : results.get(a.playerId)!.net! >= 0 ? "pos" : "neg"}`}>{results.get(a.playerId)?.net == null ? <span className="faint">–</span> : signedMoney(results.get(a.playerId)!.net!)}</td>
                   <td className="muted">{a.notes ?? "–"}</td>
@@ -142,7 +142,7 @@ export default function GameDetails() {
             {att.map((a) => { const p = db.players.find((x) => x.id === a.playerId); const r = results.get(a.playerId); return (
               <button key={a.playerId} type="button" className="list-row" onClick={() => nav(`/players/${a.playerId}`)}>
                 <Initial name={p?.name ?? "?"} size={36} />
-                <span className="list-main"><span className="list-title">{p?.name ?? "?"}</span><span className="list-sub">{r ? `${money(r.buyIns, true)} in${r.cashOut != null ? ` · ${money(r.cashOut, true)} out` : ""}` : (a.notes ?? (p?.isHost ? "Host" : ""))}</span></span>
+                <span className="list-main"><span className="list-title">{p?.name ?? "?"}</span><span className="list-sub">{r ? `${money(r.buyIns, true)} in${r.rebuyCount ? ` (${r.rebuyCount} rebuy${r.rebuyCount === 1 ? "" : "s"})` : ""}${r.cashOut != null ? ` · ${money(r.cashOut, true)} out` : ""}` : (a.notes ?? (p?.isHost ? "Host" : ""))}</span></span>
                 {r?.net != null && <span className={`list-amt ${r.net >= 0 ? "pos" : "neg"}`}>{signedMoney(r.net)}</span>}
                 <IcoChevron className="chev" />
               </button>); })}

@@ -11,7 +11,7 @@ import { IcoChip, IcoCoins, IcoDealer, IcoFood, IcoPlayers, IcoPlus } from "../c
 import { clockNow } from "../components/StartGame";
 import { AddPlayerModal, DealerModal, ExpenseModal, type EntryDraft } from "./GameForm";
 
-type Dialog = null | { kind: "buyin"; playerId?: string } | { kind: "cashout"; playerId: string } | { kind: "rake" } | { kind: "expense" } | { kind: "dealer" } | { kind: "player" } | { kind: "end" };
+type Dialog = null | { kind: "buyin"; playerId?: string } | { kind: "rebuy"; playerId: string } | { kind: "rebuy-pick" } | { kind: "cashout"; playerId: string } | { kind: "rake" } | { kind: "expense" } | { kind: "dealer" } | { kind: "player" } | { kind: "end" };
 
 function elapsed(startedAt?: string, startTime?: string): string {
   const start = startedAt ? new Date(startedAt).getTime() : NaN;
@@ -69,7 +69,8 @@ export default function LiveGame() {
       {syncError && <Card className="stack-item"><p className="error" style={{ margin: 0 }}>A change did not reach the server: {syncError}</p></Card>}
 
       <div className="live-actions">
-        <button className="btn btn-primary" onClick={() => setDialog({ kind: "buyin" })}><IcoPlayers /> Buy-in / add player</button>
+        <button className="btn btn-primary" onClick={() => setDialog({ kind: "buyin" })}><IcoPlayers /> Buy-in</button>
+        <button className="btn" onClick={() => setDialog({ kind: "rebuy-pick" })} disabled={!results.length}><IcoCoins /> Rebuy</button>
         <button className="btn" onClick={() => setDialog({ kind: "rake" })}><IcoChip /> Add rake</button>
         <button className="btn" onClick={() => setDialog({ kind: "expense" })}><IcoFood /> Add expense</button>
         <button className="btn" onClick={() => setDialog({ kind: "dealer" })}><IcoDealer /> Add dealer</button>
@@ -79,7 +80,7 @@ export default function LiveGame() {
 
       <div className="grid grid-stats">
         <div className="stat"><div className="stat-ico"><IcoChip /></div><div className="stat-body"><div className="stat-label">Rake so far</div><div className="stat-value">{money(f.grossRake, true)}</div></div></div>
-        <div className="stat"><div className="stat-ico"><IcoPlayers /></div><div className="stat-body"><div className="stat-label">Buy-ins</div><div className="stat-value">{money(pot.buyIns, true)}</div><div className="stat-sub">{pot.seated} seated · {pot.cashedOut} cashed out</div></div></div>
+        <div className="stat"><div className="stat-ico"><IcoPlayers /></div><div className="stat-body"><div className="stat-label">Buy-ins</div><div className="stat-value">{money(pot.buyIns, true)}</div><div className="stat-sub">{results.reduce((n, r) => n + r.rebuyCount, 0)} rebuys · {pot.seated} seated · {pot.cashedOut} out</div></div></div>
         <div className="stat"><div className="stat-ico"><IcoCoins /></div><div className="stat-body"><div className="stat-label">Chips in play</div><div className="stat-value">{money(Math.max(pot.inPlay, 0), true)}</div><div className="stat-sub">buy-ins − cash-outs − rake</div></div></div>
         <div className="stat stat-green"><div className="stat-ico"><IcoCoins /></div><div className="stat-body"><div className="stat-label">Net so far</div><div className="stat-value">{money(f.netDistributable, true)}</div><div className="stat-sub">{f.expenses ? `after ${money(f.expenses, true)} expenses` : "no expenses yet"}</div></div></div>
       </div>
@@ -88,20 +89,21 @@ export default function LiveGame() {
         <Card title={`Table (${att.length})`} actions={<button className="btn btn-sm" onClick={() => setDialog({ kind: "player" })}><IcoPlus /> Seat player (no buy-in)</button>}>
           {att.length ? att.map((a) => {
             const r = byPlayer.get(a.playerId);
-            const out = r?.cashOut != null;
+            const out = !!r && !r.inPlay;
             return (
               <div key={a.playerId} className={`seat ${out ? "out" : ""}`}>
                 <Initial name={name(a.playerId)} size={36} />
                 <div>
                   <div className="seat-name">{name(a.playerId)}{a.notes ? <span className="faint"> · {a.notes}</span> : null}</div>
-                  <div className="seat-sub">{r ? `${r.buyInCount} buy-in${r.buyInCount === 1 ? "" : "s"} · ${money(r.buyIns, true)} in` : "no buy-in recorded"}{out ? ` · ${money(r!.cashOut!, true)} out` : ""}</div>
+                  <div className="seat-sub">{r ? `${money(r.buyIns, true)} in${r.rebuyCount ? ` · ${r.rebuyCount} rebuy${r.rebuyCount === 1 ? "" : "s"}` : ""}` : "no buy-in recorded"}{r?.cashOut != null ? ` · ${money(r.cashOut, true)} out` : ""}</div>
                 </div>
                 <div className="seat-amts">
                   {out ? <div className={r!.net! >= 0 ? "net-pos" : "net-neg"}>{signedMoney(r!.net!)}</div> : <div className="muted">in play</div>}
                 </div>
                 <div className="seat-cashout" style={{ display: "flex", gap: 6 }}>
-                  <button className="btn btn-sm" onClick={() => setDialog({ kind: "buyin", playerId: a.playerId })}>+ Buy-in</button>
-                  {!out && <button className="btn btn-sm btn-primary" onClick={() => setDialog({ kind: "cashout", playerId: a.playerId })}>Cash out</button>}
+                  {!r ? <button className="btn btn-sm" onClick={() => setDialog({ kind: "buyin", playerId: a.playerId })}>+ Buy-in</button>
+                    : <button className="btn btn-sm" onClick={() => setDialog({ kind: "rebuy", playerId: a.playerId })}>{out ? "Rebuy (back in)" : "Rebuy"}</button>}
+                  {r && !out && <button className="btn btn-sm btn-primary" onClick={() => setDialog({ kind: "cashout", playerId: a.playerId })}>Cash out</button>}
                 </div>
               </div>
             );
@@ -128,6 +130,18 @@ export default function LiveGame() {
       </div>
 
       {dialog?.kind === "buyin" && <BuyInModal gameId={game.id} playerId={dialog.playerId} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "rebuy-pick" && (
+        <Modal title="Rebuy: who?" onClose={() => setDialog(null)}>
+          <div className="mini-list" style={{ maxHeight: 360, overflow: "auto" }}>
+            {results.map((r) => (
+              <button key={r.playerId} type="button" className="mini-btn" onClick={() => setDialog({ kind: "rebuy", playerId: r.playerId })}>
+                <Initial name={name(r.playerId)} />{name(r.playerId)}<span className="muted">{money(r.buyIns, true)} in{r.rebuyCount ? ` · ${r.rebuyCount} rebuy${r.rebuyCount === 1 ? "" : "s"}` : ""}{!r.inPlay ? " · out" : ""}</span>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+      {dialog?.kind === "rebuy" && <RebuyModal gameId={game.id} playerId={dialog.playerId} onClose={() => setDialog(null)} />}
       {dialog?.kind === "cashout" && <CashOutModal gameId={game.id} playerId={dialog.playerId} onClose={() => setDialog(null)} />}
       {dialog?.kind === "rake" && <AmountModal title="Add rake" placeholder="Rake taken (AUD)" onClose={() => setDialog(null)} onSave={(amount, note) => { addEntry({ id: uid(), category: "rake", amount: String(amount), originalText: note || `$${amount}`, verification: "verified", deductFromRake: false, notes: "", dealerName: "", dealerPlayerId: null }); setDialog(null); }} />}
       {dialog?.kind === "expense" && <ExpenseModal onClose={() => setDialog(null)} onAdd={(e) => { addEntry(e); setDialog(null); }} />}
@@ -197,6 +211,25 @@ function BuyInModal({ gameId, playerId, onClose }: { gameId: string; playerId?: 
   );
 }
 
+function RebuyModal({ gameId, playerId, onClose }: { gameId: string; playerId: string; onClose: () => void }) {
+  const { db, dispatch } = useStore();
+  const p = db.players.find((x) => x.id === playerId);
+  const r = playerResults(db, gameId).find((x) => x.playerId === playerId);
+  const [amount, setAmount] = useState(r?.lastBuyIn != null ? String(r.lastBuyIn) : "");
+  const ok = amount !== "" && !isNaN(Number(amount)) && Number(amount) > 0;
+  const quick = [...new Set([r?.lastBuyIn ?? 0, 50, 100, 200].filter((n) => n > 0))];
+  const save = () => { dispatch({ type: "tx:add", tx: { id: uid(), gameId, playerId, kind: "rebuy", amount: Number(amount), at: new Date().toISOString() } }); onClose(); };
+  return (
+    <Modal title={`Rebuy: ${p?.name ?? ""}`} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!ok} onClick={save}>Add rebuy</button></>}>
+      <p className="muted">{r ? `${money(r.buyIns)} in so far${r.rebuyCount ? ` (${r.rebuyCount} rebuy${r.rebuyCount === 1 ? "" : "s"})` : ""}${!r.inPlay ? " · cashed out, this puts them back in play" : ""}.` : "No buy-in yet."}</p>
+      <div className="pill-row" style={{ marginBottom: 10 }}>
+        {quick.map((n) => <button key={n} type="button" className={`btn btn-sm ${Number(amount) === n ? "btn-primary" : ""}`} onClick={() => setAmount(String(n))}>{money(n, true)}</button>)}
+      </div>
+      <Field label="Rebuy amount (AUD)"><div className="input-money"><span>$</span><input className="input" inputMode="decimal" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && ok) save(); }} /></div></Field>
+    </Modal>
+  );
+}
+
 function CashOutModal({ gameId, playerId, onClose }: { gameId: string; playerId: string; onClose: () => void }) {
   const { db, dispatch } = useStore();
   const [amount, setAmount] = useState("");
@@ -207,7 +240,7 @@ function CashOutModal({ gameId, playerId, onClose }: { gameId: string; playerId:
   const net = ok && r ? Number(amount) - r.buyIns : null;
   return (
     <Modal title={`Cash out ${p?.name ?? ""}`} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!ok} onClick={save}>Cash out</button></>}>
-      <p className="muted">Bought in {money(r?.buyIns ?? 0)} over {r?.buyInCount ?? 0} buy-in{(r?.buyInCount ?? 0) === 1 ? "" : "s"}.</p>
+      <p className="muted">Bought in {money(r?.buyIns ?? 0)}{r?.rebuyCount ? ` including ${r.rebuyCount} rebuy${r.rebuyCount === 1 ? "" : "s"}` : ""}.</p>
       <Field label="Chips cashed out (AUD)"><div className="input-money"><span>$</span><input className="input" inputMode="decimal" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0 if busted" onKeyDown={(e) => { if (e.key === "Enter" && ok) save(); }} /></div></Field>
       {net != null && <p className={`rule ${net >= 0 ? "pos" : "neg"}`} style={{ marginTop: 8 }}>Result for the night: {signedMoney(net)}</p>}
     </Modal>

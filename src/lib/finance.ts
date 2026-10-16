@@ -220,17 +220,17 @@ export function durationFromTimes(start: string, finish: string): number | null 
   return Math.round((d / 60) * 100) / 100;
 }
 
-/** Buy-ins, cash-outs and net per player for one game. */
-export interface PlayerResult { playerId: string; buyIns: number; buyInCount: number; cashOut: number | null; net: number | null }
+/** Buy-ins, rebuys, cash-outs and net per player for one game. A player is "in play" until their latest movement is a cash-out. */
+export interface PlayerResult { playerId: string; buyIns: number; buyInCount: number; rebuyCount: number; lastBuyIn: number | null; cashOut: number | null; inPlay: boolean; net: number | null }
 export function playerResults(db: DB, gameId: string): PlayerResult[] {
   const map = new Map<string, PlayerResult>();
   for (const t of db.transactions.filter((x) => x.gameId === gameId).sort((a, b) => a.at.localeCompare(b.at))) {
-    const r = map.get(t.playerId) ?? { playerId: t.playerId, buyIns: 0, buyInCount: 0, cashOut: null, net: null };
-    if (t.kind === "buy_in") { r.buyIns += t.amount; r.buyInCount++; }
-    else r.cashOut = (r.cashOut ?? 0) + t.amount;
+    const r = map.get(t.playerId) ?? { playerId: t.playerId, buyIns: 0, buyInCount: 0, rebuyCount: 0, lastBuyIn: null, cashOut: null, inPlay: true, net: null };
+    if (t.kind === "cash_out") { r.cashOut = (r.cashOut ?? 0) + t.amount; r.inPlay = false; }
+    else { r.buyIns += t.amount; r.lastBuyIn = t.amount; r.inPlay = true; if (t.kind === "rebuy" || r.buyInCount > 0) r.rebuyCount++; else r.buyInCount++; }
     map.set(t.playerId, r);
   }
-  for (const r of map.values()) r.net = r.cashOut == null ? null : r.cashOut - r.buyIns;
+  for (const r of map.values()) r.net = r.inPlay ? null : (r.cashOut ?? 0) - r.buyIns;
   return [...map.values()];
 }
 
@@ -241,7 +241,7 @@ export function potCheck(db: DB, gameId: string): PotCheck {
   const buyIns = sum(rs.map((r) => r.buyIns));
   const cashOuts = sum(rs.map((r) => r.cashOut ?? 0));
   const rake = sum(db.entries.filter((e) => e.gameId === gameId && e.category === "rake").map(amt));
-  const cashedOut = rs.filter((r) => r.cashOut != null).length;
+  const cashedOut = rs.filter((r) => !r.inPlay).length;
   return { buyIns, cashOuts, rake, inPlay: buyIns - cashOuts - rake, unaccounted: buyIns - cashOuts - rake, seated: rs.length - cashedOut, cashedOut, hasData: rs.length > 0 };
 }
 
@@ -249,7 +249,7 @@ export function potCheck(db: DB, gameId: string): PotCheck {
 export function playerLifetime(db: DB, playerId: string): { games: number; buyIns: number; cashOut: number; net: number } {
   let games = 0, buyIns = 0, cashOut = 0;
   const byGame = new Map<string, PlayerResult>();
-  for (const g of db.games) for (const r of playerResults(db, g.id)) if (r.playerId === playerId && r.cashOut != null) byGame.set(g.id, r);
+  for (const g of db.games) for (const r of playerResults(db, g.id)) if (r.playerId === playerId && !r.inPlay) byGame.set(g.id, r);
   for (const r of byGame.values()) { games++; buyIns += r.buyIns; cashOut += r.cashOut ?? 0; }
   return { games, buyIns, cashOut, net: cashOut - buyIns };
 }
