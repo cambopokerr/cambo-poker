@@ -5,6 +5,10 @@ import { Field } from "../components/ui";
 
 type Mode = "signin" | "signup";
 
+/** Instagram, Facebook, Messenger and similar in-app browsers block Google sign-in and app installs. */
+const IN_APP_BROWSER = /Instagram|FBAN|FBAV|FB_IAB|Messenger|Line\/|Snapchat|TikTok|BytedanceWebview/i.test(navigator.userAgent);
+const LIVE_URL = window.location.origin + import.meta.env.BASE_URL;
+
 /** Sign-in screen and the "waiting for approval" screen. One shared login is fine: the first account is approved automatically. */
 export default function Login() {
   const { status, profile, error, refresh, signOut } = useStore();
@@ -61,6 +65,18 @@ export default function Login() {
           </>
         )}
 
+        {(status === "signed_out" || status === "loading") && IN_APP_BROWSER && (
+          <div className="review-list" style={{ marginBottom: 14 }}>
+            <li style={{ flexDirection: "column", alignItems: "stretch" }}>
+              <strong>Open this in Safari or Chrome</strong>
+              <span>You're inside the Instagram/Facebook browser, which blocks Google sign-in. Tap the ··· menu and choose "Open in browser", or copy the link below.</span>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <input className="input" readOnly value={LIVE_URL} onFocus={(e) => e.currentTarget.select()} />
+                <button type="button" className="btn btn-sm" onClick={() => { navigator.clipboard?.writeText(LIVE_URL).catch(() => {}); }}>Copy</button>
+              </div>
+            </li>
+          </div>
+        )}
         {(status === "signed_out" || status === "loading") && (
           <>
             <button type="button" className="btn btn-lg google-btn" disabled={busy} onClick={async () => {
