@@ -41,7 +41,6 @@ export default function Dashboard() {
           <h1 className="hero-title">Your Games.<br />Your Numbers.</h1>
           <p className="hero-sub">Poker nights, organised.</p>
           <hr className="hero-rule" />
-          <p className="hero-text">{db.settings.businessName} is a private home game business hosted by {hosts.join(" & ")}. Track games, players, rake, expenses and profits, all in one place.</p>
           <div className="hero-actions">
             <Link className="btn btn-primary btn-lg" to="/games/new">Log a Game <span aria-hidden>→</span></Link>
             <Link className="btn btn-outline btn-lg" to="/games">View Games</Link>
