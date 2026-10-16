@@ -79,7 +79,8 @@ function systemPrompt(players: Player[], hosts: string[], today: string): string
 }
 
 export class AiError extends Error {
-  constructor(message: string, public readonly status?: number) { super(message); }
+  readonly status?: number;
+  constructor(message: string, status?: number) { super(message); this.status = status; }
 }
 
 export async function parseGameNote(note: string, apiKey: string, players: Player[], hosts: string[]): Promise<GameDraft> {

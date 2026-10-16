@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { LogGameModal, liveGame } from "../components/StartGame";
 import { useStore } from "../data/store";
 import { computeGame, computeTotals } from "../lib/finance";
@@ -14,7 +14,6 @@ type Filter = GameStatus | "all";
 export default function Games() {
   const { db } = useStore();
   const [params, setParams] = useSearchParams();
-  const nav = useNavigate();
   const [start, setStart] = useState(false);
   const live = liveGame(db.games);
   const [q, setQ] = useState(params.get("q") ?? "");
