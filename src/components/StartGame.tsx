@@ -53,3 +53,24 @@ export default function StartGameModal({ onClose }: { onClose: () => void }) {
     </Modal>
   );
 }
+
+/** "Log a Game" chooser: run a live game now, type up a past one, or paste a note for the AI to read. */
+export function LogGameModal({ onClose }: { onClose: () => void }) {
+  const { db } = useStore();
+  const nav = useNavigate();
+  const [start, setStart] = useState(false);
+  const existing = liveGame(db.games);
+  const go = (to: string) => { onClose(); nav(to); };
+  if (start) return <StartGameModal onClose={onClose} />;
+  return (
+    <Modal title="Log a Game" onClose={onClose}>
+      <div className="choices">
+        {existing
+          ? <button type="button" className="choice" onClick={() => go(`/games/${existing.id}/live`)}><span className="choice-ico live">▶</span><span><strong>Open the live game</strong><small>Started {existing.startTime}. End it before starting another.</small></span></button>
+          : <button type="button" className="choice" onClick={() => setStart(true)}><span className="choice-ico live">▶</span><span><strong>Start a live game</strong><small>Playing now. Add buy-ins, rebuys, rake and expenses as the night goes.</small></span></button>}
+        <button type="button" className="choice" onClick={() => go("/games/new")}><span className="choice-ico">✎</span><span><strong>Log a past game</strong><small>Type the details in yourself: date, players, rake, costs, dealer.</small></span></button>
+        <button type="button" className="choice" onClick={() => go("/games/paste")}><span className="choice-ico">✦</span><span><strong>Paste a note</strong><small>Paste the night's note and let the AI fill the form. You check it before saving.</small></span></button>
+      </div>
+    </Modal>
+  );
+}

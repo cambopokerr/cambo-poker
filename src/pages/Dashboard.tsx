@@ -6,7 +6,7 @@ import { fmtDateShort, fmtMonth, money } from "../lib/format";
 import { Card, StatusBadge } from "../components/ui";
 import { IcoCalendar, IcoChevron, IcoChip, IcoCoins, IcoDealer, IcoFinancials, IcoPlayers, IcoPlus } from "../components/icons";
 import { C, Legend, TrendChart, type TrendPoint } from "../components/charts";
-import StartGameModal, { liveGame } from "../components/StartGame";
+import { LogGameModal, liveGame } from "../components/StartGame";
 
 
 export default function Dashboard() {
@@ -46,15 +46,15 @@ export default function Dashboard() {
           <hr className="hero-rule" />
           <div className="hero-actions">
             {live ? <Link className="btn btn-primary btn-lg" to={`/games/${live.id}/live`}>Open live game <span aria-hidden>→</span></Link>
-              : <button type="button" className="btn btn-primary btn-lg" onClick={() => setStart(true)}>▶ Start Game</button>}
-            <Link className="btn btn-outline btn-lg" to="/games/new">Log a past game</Link>
+              : <button type="button" className="btn btn-primary btn-lg" onClick={() => setStart(true)}><IcoPlus /> Log a Game</button>}
+            <Link className="btn btn-outline btn-lg" to="/games/paste">Paste a note</Link>
             <Link className="btn btn-outline btn-lg" to="/games">View Games</Link>
           </div>
         </div>
       </section>
 
       {live && <div className="live-banner"><div><strong>Game in progress</strong> <span className="muted">· started {live.startTime} · {db.attendance.filter((a) => a.gameId === live.id).length} seated</span></div><Link className="btn btn-primary" to={`/games/${live.id}/live`}>Open live game</Link></div>}
-      {start && <StartGameModal onClose={() => setStart(false)} />}
+      {start && <LogGameModal onClose={() => setStart(false)} />}
       <div className="tiles">
         <div className="tile">
           <div className="tile-ico"><IcoCalendar /></div>
@@ -84,7 +84,7 @@ export default function Dashboard() {
                 <span className="list-side"><span className="list-amt">{f.hasRake ? money(f.grossRake, true) : "?"}</span><StatusBadge status={f.status} /></span>
                 <IcoChevron className="chev" />
               </button>); })}
-            <Link to="/games/new" className="btn btn-primary btn-lg mt-sm" style={{ width: "100%" }}><IcoPlus /> Log a Game</Link>
+            <button type="button" onClick={() => setStart(true)} className="btn btn-primary btn-lg mt-sm" style={{ width: "100%" }}><IcoPlus /> Log a Game</button>
           </div>
           <div className="table-wrap only-desktop">
             <table className="table tight">

@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useStore } from "../data/store";
 import { durationFromTimes, parseClock } from "../lib/finance";
 import { money, todayISO, uid } from "../lib/format";
 import { findPlayerByName, norm } from "../lib/names";
+import type { GameDraft } from "../lib/ai";
 import type { Attendance, Category, Distribution, FinancialEntry, Game, Player, Verification } from "../types";
 import { CATEGORY_LABEL } from "../types";
 import { Card, Field, Initial, Modal, Search } from "../components/ui";
@@ -27,29 +28,50 @@ export default function GameForm() {
     try { const raw = qs.get("dealers"); return raw ? JSON.parse(raw) : []; } catch { return []; }
   })();
 
+  // A draft proposed by the AI note reader (Paste a note). Every field below starts from it but stays editable.
+  const draft = !existing ? (useLocation().state as { draft?: GameDraft } | null)?.draft : undefined;
+  const resolved = useMemo(() => {
+    if (!draft) return null;
+    const att: AttDraft[] = []; const created: Player[] = [];
+    for (const p of draft.players) {
+      let pl = findPlayerByName(db.players, p.name) ?? created.find((c) => norm(c.name) === norm(p.name));
+      if (!pl) { pl = { id: `p-${uid()}`, name: p.name, aliases: [], notes: "", isHost: false }; created.push(pl); }
+      if (!att.some((a) => a.playerId === pl!.id)) att.push({ playerId: pl.id, notes: p.note });
+    }
+    return { att, created };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [step, setStep] = useState<Step>(1);
   // --- step 1 ---
-  const [date, setDate] = useState(existing?.date ?? todayISO());
-  const [noDate, setNoDate] = useState(existing ? existing.date == null : false);
-  const [odt, setOdt] = useState(existing?.originalDateText ?? "");
-  const [start, setStart] = useState(existing?.startTime ?? "");
-  const [finish, setFinish] = useState(existing?.finishTime ?? "");
-  const [hours, setHours] = useState(existing?.durationSource === "recorded" && existing.durationHours != null ? String(existing.durationHours) : "");
-  const [location, setLocation] = useState(existing ? existing.location ?? "" : "Home game");
-  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [date, setDate] = useState(draft ? draft.date ?? todayISO() : existing?.date ?? todayISO());
+  const [noDate, setNoDate] = useState(draft ? draft.date == null : existing ? existing.date == null : false);
+  const [odt, setOdt] = useState(draft?.dateAsWritten ?? existing?.originalDateText ?? "");
+  const [start, setStart] = useState(draft?.startTime ?? existing?.startTime ?? "");
+  const [finish, setFinish] = useState(draft?.finishTime ?? existing?.finishTime ?? "");
+  const [hours, setHours] = useState(draft ? (draft.hours != null ? String(draft.hours) : "") : existing?.durationSource === "recorded" && existing.durationHours != null ? String(existing.durationHours) : "");
+  const [location, setLocation] = useState(draft ? draft.location ?? "" : existing ? existing.location ?? "" : "Home game");
+  const [notes, setNotes] = useState(draft?.notes ?? existing?.notes ?? "");
   // --- step 2 ---
-  const [att, setAtt] = useState<AttDraft[]>(() => db.attendance.filter((a) => a.gameId === id).map((a) => ({ playerId: a.playerId, notes: a.notes ?? "" })));
-  const [newPlayers, setNewPlayers] = useState<Player[]>([]);
+  const [att, setAtt] = useState<AttDraft[]>(() => resolved?.att ?? db.attendance.filter((a) => a.gameId === id).map((a) => ({ playerId: a.playerId, notes: a.notes ?? "" })));
+  const [newPlayers, setNewPlayers] = useState<Player[]>(resolved?.created ?? []);
   const [pq, setPq] = useState("");
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   // --- step 3 ---
   const existingEntries = db.entries.filter((e) => e.gameId === id);
   const rakeExisting = existingEntries.find((e) => e.category === "rake");
-  const [rake, setRake] = useState(rakeExisting?.amount == null ? "" : String(rakeExisting.amount));
-  const [rakeText, setRakeText] = useState(rakeExisting?.originalText ?? "");
-  const [rakeVerified, setRakeVerified] = useState(rakeExisting ? rakeExisting.verification === "verified" : true);
+  const [rake, setRake] = useState(draft ? (draft.rake.amount == null ? "" : String(draft.rake.amount)) : rakeExisting?.amount == null ? "" : String(rakeExisting.amount));
+  const [rakeText, setRakeText] = useState(draft?.rake.asWritten ?? rakeExisting?.originalText ?? "");
+  const [rakeVerified, setRakeVerified] = useState(draft ? draft.rake.verified : rakeExisting ? rakeExisting.verification === "verified" : true);
   const [entries, setEntries] = useState<EntryDraft[]>(() => {
+    if (draft) {
+      const hostsP = db.players.filter((p) => p.isHost);
+      const alternating = draft.dealers.filter((d) => d.isHost).length > 1;
+      return [
+        ...draft.expenses.map((e): EntryDraft => ({ id: uid(), category: e.category, amount: e.amount == null ? "" : String(e.amount), originalText: e.asWritten, verification: e.verified ? "verified" : "needs_review", deductFromRake: false, notes: "", dealerName: "", dealerPlayerId: null })),
+        ...draft.dealers.map((d): EntryDraft => { const host = findPlayerByName(hostsP, d.name); return { id: uid(), category: "dealer_earnings", amount: d.amount == null ? "" : String(d.amount), originalText: d.asWritten, verification: "verified", deductFromRake: d.paidFromRake, notes: alternating && host ? "Alternating" : "", dealerName: host?.name ?? d.name, dealerPlayerId: host?.id ?? null }; }),
+      ];
+    }
     const base = existingEntries.filter((e) => e.category !== "rake").map((e) => ({ id: e.id, category: e.category, amount: e.amount == null ? "" : String(e.amount), originalText: e.originalText, verification: e.verification, deductFromRake: !!e.deductFromRake, notes: e.notes ?? "", dealerName: e.dealerName ?? (e.category === "dealer_earnings" ? (existing?.dealerName ?? "") : ""), dealerPlayerId: e.dealerPlayerId ?? (e.category === "dealer_earnings" ? existing?.dealerPlayerId ?? null : null) }));
     if (!existing) {
       for (const d of qDealers) {
@@ -59,9 +81,11 @@ export default function GameForm() {
     }
     return base;
   });
-  const [dists, setDists] = useState<DistDraft[]>(() => db.distributions.filter((d) => d.gameId === id).map((d) => ({ id: d.id, recipient: d.recipient, amount: d.amount == null ? "" : String(d.amount), originalText: d.originalText, verification: d.verification, pooled: d.type === "pooled_total" })));
+  const [dists, setDists] = useState<DistDraft[]>(() => draft
+    ? draft.payouts.map((p) => ({ id: uid(), recipient: p.recipient === "pooled" ? "Hosts (pooled)" : (hosts.find((h) => norm(h) === norm(p.recipient)) ?? p.recipient), amount: p.amount == null ? "" : String(p.amount), originalText: p.asWritten, verification: (p.verified ? "verified" : "needs_review") as Verification, pooled: p.recipient === "pooled" }))
+    : db.distributions.filter((d) => d.gameId === id).map((d) => ({ id: d.id, recipient: d.recipient, amount: d.amount == null ? "" : String(d.amount), originalText: d.originalText, verification: d.verification, pooled: d.type === "pooled_total" })));
   const [showSplit, setShowSplit] = useState(dists.length > 0);
-  const [reviewNotes, setReviewNotes] = useState<string[]>(existing?.reviewNotes ?? []);
+  const [reviewNotes, setReviewNotes] = useState<string[]>(draft?.openQuestions ?? existing?.reviewNotes ?? []);
   const [expenseModal, setExpenseModal] = useState(false);
   const [dealerModal, setDealerModal] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -117,7 +141,7 @@ export default function GameForm() {
       startTime: start.trim(), finishTime: finish.trim(),
       durationHours: recHours ?? computed, durationSource: recHours != null ? "recorded" : computed != null ? "computed" : null,
       dealerPlayerId: primaryDealer?.dealerPlayerId ?? null, dealerName: primaryDealer ? (primaryDealer.dealerName || nameOf(primaryDealer.dealerPlayerId ?? "")) : "",
-      location: location.trim() || undefined, notes: notes.trim(), sourceText: existing?.sourceText ?? "", reviewNotes: reviewNotes.map((r) => r.trim()).filter(Boolean),
+      location: location.trim() || undefined, notes: notes.trim(), sourceText: draft?.sourceText ?? existing?.sourceText ?? "", reviewNotes: reviewNotes.map((r) => r.trim()).filter(Boolean),
     };
     const attendance: Attendance[] = att.map((a) => ({ gameId: gid, playerId: a.playerId, notes: a.notes.trim() || undefined }));
     const fin: FinancialEntry[] = [
@@ -137,6 +161,13 @@ export default function GameForm() {
     }));
     for (const p of newPlayers) if (attendance.some((a) => a.playerId === p.id)) dispatch({ type: "player:save", player: p });
     dispatch({ type: "game:save", game, attendance, entries: fin, distributions });
+    if (draft) {
+      const at = new Date(`${game.date ?? todayISO()}T12:00:00`).toISOString();
+      for (const t of draft.transactions) {
+        const p = findPlayerByName(allPlayers, t.player);
+        if (p && attendance.some((a) => a.playerId === p.id)) dispatch({ type: "tx:add", tx: { id: uid(), gameId: gid, playerId: p.id, kind: t.kind, amount: t.amount, at, notes: "From the pasted note" } });
+      }
+    }
     nav(`/games/${gid}`);
   };
 
@@ -146,7 +177,7 @@ export default function GameForm() {
     <div className="wizard">
       <div className="wizard-head">
         <Link to={cancelTo} className="icon-btn" aria-label="Cancel">‹</Link>
-        <h1 style={{ fontSize: 22 }}>{editing ? "Edit Game" : "New Game"}</h1>
+        <h1 style={{ fontSize: 22 }}>{editing ? "Edit Game" : draft ? "Check the game" : "New Game"}</h1>
         <span />
       </div>
       <ol className="stepper" aria-label="Steps">
@@ -157,6 +188,7 @@ export default function GameForm() {
         ))}
       </ol>
 
+      {draft && step === 1 && <Card><p style={{ margin: 0 }}><strong>Filled in from your note by the AI.</strong> Go through the three steps and check every figure against the note. {resolved?.created.length ? `${resolved.created.length} new player${resolved.created.length === 1 ? "" : "s"} will be added.` : ""} Nothing is saved until you press Save Game.</p></Card>}
       {errors.length > 0 && <Card><ul className="review-list">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></Card>}
 
       {step === 1 && (

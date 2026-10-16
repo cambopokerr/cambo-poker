@@ -14,6 +14,8 @@ export default function SettingsPage() {
   const [split, setSplit] = useState(s.hosts.map((h) => String(Math.round((s.split[h] ?? 0) * 100))).join(", "));
   const [tol, setTol] = useState(String(s.reconcileTolerance));
   const [dealerDefault, setDealerDefault] = useState(s.dealerPaidFromRakeByDefault);
+  const [aiKey, setAiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [people, setPeople] = useState<Profile[]>([]);
@@ -35,6 +37,14 @@ export default function SettingsPage() {
     dispatch({ type: "settings", settings: { ...s, businessName: name.trim() || s.businessName, hosts: hs, split: Object.fromEntries(hs.map((h, i) => [h, ps[i] / 100])), reconcileTolerance: t, dealerPaidFromRakeByDefault: dealerDefault } });
     setMsg("Settings saved.");
   };
+
+  const saveKey = () => {
+    const k = aiKey.trim();
+    if (!k) return setMsg("Paste the key first.");
+    dispatch({ type: "settings", settings: { ...s, anthropicApiKey: k } });
+    setAiKey(""); setMsg("AI key saved. Paste a note from Log a Game to use it.");
+  };
+  const clearKey = () => { const { anthropicApiKey: _drop, ...rest } = s; void _drop; dispatch({ type: "settings", settings: rest }); setMsg("AI key removed."); };
 
   const exportJSON = () => download(`cambo-poker-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(db, null, 2), "application/json");
   const importJSON = (file: File) => {
@@ -102,6 +112,23 @@ export default function SettingsPage() {
             <p className="rule" style={{ marginTop: 10 }}>Sign-in is restricted to the allowed email list in the database (currently the Cambo Poker Google account only). Other accounts are rejected before they are created.</p>
           </Card>
         )}
+
+        <Card title="AI note reader">
+          <p className="rule">“Paste a note” sends the note to Claude (Anthropic) to fill the New Game form. It needs an Anthropic API key, kept in the shared database{remote ? "" : " on this device"}, never in the public code. Each note costs about one cent.</p>
+          <p style={{ margin: "10px 0 6px" }}>{s.anthropicApiKey ? <span className="badge badge-reconciled">Connected · key ends in {s.anthropicApiKey.slice(-4)}</span> : <span className="badge badge-needs_review">Not set up</span>}</p>
+          <div className="form-grid">
+            <Field label={s.anthropicApiKey ? "Replace key" : "Anthropic API key"} className="span-4" hint="From console.anthropic.com, Settings, API Keys">
+              <div style={{ display: "flex", gap: 8 }}>
+                <input className="input" type={showKey ? "text" : "password"} value={aiKey} onChange={(e) => setAiKey(e.target.value)} placeholder="sk-ant-…" autoComplete="off" />
+                <button type="button" className="btn" onClick={() => setShowKey((v) => !v)}>{showKey ? "Hide" : "Show"}</button>
+              </div>
+            </Field>
+          </div>
+          <div className="card-actions" style={{ marginTop: 10, justifyContent: "flex-end" }}>
+            {s.anthropicApiKey && <button className="btn btn-danger" onClick={clearKey}>Remove key</button>}
+            <button className="btn btn-primary" onClick={saveKey} disabled={!aiKey.trim()}>Save key</button>
+          </div>
+        </Card>
 
         <Card title="Data">
           <p className="rule">

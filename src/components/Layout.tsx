@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useStore } from "../data/store";
 import { IcoDashboard, IcoFinancials, IcoGames, IcoPlayers, IcoPlus, IcoSearch, IcoSettings } from "./icons";
-import StartGameModal, { liveGame } from "./StartGame";
+import { LogGameModal, liveGame } from "./StartGame";
 
 const NAV = [
   { to: "/", label: "Home", Icon: IcoDashboard, bg: 2 },
@@ -62,7 +62,7 @@ export default function Layout() {
           <div className="header-right">
             <button type="button" className={`icon-btn ${open ? "active" : ""}`} aria-label="Search" aria-expanded={open} onClick={() => setOpen((v) => !v)}><IcoSearch /></button>
             {live ? <Link className="btn btn-primary log-btn" to={`/games/${live.id}/live`}><span className="badge badge-live badge-plain" style={{ padding: "2px 8px" }}>Live</span><span>Open game</span></Link>
-              : <button type="button" className="btn btn-primary log-btn" onClick={() => setStart(true)}><IcoPlus /><span>Start Game</span></button>}
+              : <button type="button" className="btn btn-primary log-btn" onClick={() => setStart(true)}><IcoPlus /><span>Log a Game</span></button>}
           </div>
         </div>
         {open && (
@@ -83,7 +83,7 @@ export default function Layout() {
         </footer>
       </main>
 
-      {start && <StartGameModal onClose={() => setStart(false)} />}
+      {start && <LogGameModal onClose={() => setStart(false)} />}
       <nav className="tabbar" aria-label="Primary">
         {NAV.map(({ to, label, Icon }) => (
           <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>

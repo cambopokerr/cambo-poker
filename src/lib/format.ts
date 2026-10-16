@@ -24,5 +24,6 @@ export function fmtMonth(key: string): string {
 }
 export const fmtHours = (h: number | null): string => (h == null ? "–" : `${h % 1 === 0 ? h : h.toFixed(1)} h`);
 export const pct = (n: number): string => `${Math.round(n * 100)}%`;
-export const todayISO = (): string => new Date().toISOString().slice(0, 10);
+/** Today's date in the phone's own timezone (not UTC, which would be yesterday until 10am in Australia). */
+export const todayISO = (): string => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 export const uid = (): string => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);

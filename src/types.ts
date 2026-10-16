@@ -112,6 +112,8 @@ export interface Settings {
   dealerPaidFromRakeByDefault: boolean;
   /** Treat a game as reconciled when |computed net - recorded distribution| <= this many dollars. */
   reconcileTolerance: number;
+  /** Anthropic API key used by "Paste notes" to read a game note with Claude. Stored in the shared database, never in the code. */
+  anthropicApiKey?: string;
 }
 
 export interface DB {

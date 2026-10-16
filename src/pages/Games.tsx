@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import StartGameModal, { liveGame } from "../components/StartGame";
+import { LogGameModal, liveGame } from "../components/StartGame";
 import { useStore } from "../data/store";
 import { computeGame, computeTotals } from "../lib/finance";
 import { money } from "../lib/format";
@@ -56,8 +56,7 @@ export default function Games() {
       <div className="page-head">
         <div><h1>Games</h1><div className="sub">View and manage all poker sessions. Track players, rake, expenses and profit.</div></div>
         <div className="actions only-desktop">
-          <Link className="btn" to="/games/new">Log a past game</Link>
-          <button className="btn btn-primary" onClick={() => setStart(true)}>▶ Start Game</button>
+          <button className="btn btn-primary" onClick={() => setStart(true)}><IcoPlus /> Log a Game</button>
         </div>
       </div>
       {live && <div className="live-banner"><div><strong>Game in progress</strong> <span className="muted">· started {live.startTime}</span></div><Link className="btn btn-primary" to={`/games/${live.id}/live`}>Open live game</Link></div>}
@@ -89,9 +88,8 @@ export default function Games() {
         <GameTable games={rows} />
         <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>Showing {rows.length} of {db.games.length} games</p>
       </Card>
-      <button type="button" onClick={() => (live ? nav(`/games/${live.id}/live`) : setStart(true))} className="fab only-mobile" aria-label={live ? "Open live game" : "Start game"}><IcoPlus /></button>
-      <p className="only-mobile muted" style={{ textAlign: "center", fontSize: 13, marginTop: 12 }}><Link to="/games/new">Log a past game instead</Link></p>
-      {start && <StartGameModal onClose={() => setStart(false)} />}
+      <button type="button" onClick={() => setStart(true)} className="fab only-mobile" aria-label="Log a game"><IcoPlus /></button>
+      {start && <LogGameModal onClose={() => setStart(false)} />}
     </>
   );
 }
