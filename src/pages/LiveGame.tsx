@@ -80,7 +80,7 @@ export default function LiveGame() {
 
       <div className="grid grid-stats">
         <div className="stat"><div className="stat-ico"><IcoChip /></div><div className="stat-body"><div className="stat-label">Rake so far</div><div className="stat-value">{money(f.grossRake, true)}</div></div></div>
-        <div className="stat"><div className="stat-ico"><IcoPlayers /></div><div className="stat-body"><div className="stat-label">Buy-ins</div><div className="stat-value">{money(pot.buyIns, true)}</div><div className="stat-sub">{results.reduce((n, r) => n + r.rebuyCount, 0)} rebuys · {pot.seated} seated · {pot.cashedOut} out</div></div></div>
+        <div className="stat"><div className="stat-ico"><IcoPlayers /></div><div className="stat-body"><div className="stat-label">Buy-ins</div><div className="stat-value">{money(pot.buyIns, true)}</div><div className="stat-sub">{(() => { const n = results.reduce((a, r) => a + r.rebuyCount, 0); return `${n} rebuy${n === 1 ? "" : "s"}`; })()} · {pot.seated} seated · {pot.cashedOut} out</div></div></div>
         <div className="stat"><div className="stat-ico"><IcoCoins /></div><div className="stat-body"><div className="stat-label">Chips in play</div><div className="stat-value">{money(Math.max(pot.inPlay, 0), true)}</div><div className="stat-sub">buy-ins − cash-outs − rake</div></div></div>
         <div className="stat stat-green"><div className="stat-ico"><IcoCoins /></div><div className="stat-body"><div className="stat-label">Net so far</div><div className="stat-value">{money(f.netDistributable, true)}</div><div className="stat-sub">{f.expenses ? `after ${money(f.expenses, true)} expenses` : "no expenses yet"}</div></div></div>
       </div>
