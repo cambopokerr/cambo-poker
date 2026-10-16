@@ -6,6 +6,7 @@ import { fmtDateShort, fmtMonth, money } from "../lib/format";
 import { Card, StatusBadge } from "../components/ui";
 import { IcoCalendar, IcoChevron, IcoChip, IcoCoins, IcoDealer, IcoFinancials, IcoPlayers, IcoPlus } from "../components/icons";
 import { C, Legend, TrendChart, type TrendPoint } from "../components/charts";
+import StartGameModal, { liveGame } from "../components/StartGame";
 
 
 export default function Dashboard() {
@@ -20,6 +21,8 @@ export default function Dashboard() {
     return { label: fmtMonth(m.month).split(" ")[0], rake: m.rake, expenses: m.expenses, dealer, net: m.net };
   }), [db]);
   const needs = t.games - t.reconciledGames;
+  const live = liveGame(db.games);
+  const [start, setStart] = useState(false);
 
   // Dealer assignment: any combination: one owner, both owners alternating, and/or an outsourced dealer.
   const [picked, setPicked] = useState<Record<string, boolean>>({});
@@ -42,12 +45,16 @@ export default function Dashboard() {
           <p className="hero-sub">Poker nights, organised.</p>
           <hr className="hero-rule" />
           <div className="hero-actions">
-            <Link className="btn btn-primary btn-lg" to="/games/new">Log a Game <span aria-hidden>→</span></Link>
+            {live ? <Link className="btn btn-primary btn-lg" to={`/games/${live.id}/live`}>Open live game <span aria-hidden>→</span></Link>
+              : <button type="button" className="btn btn-primary btn-lg" onClick={() => setStart(true)}>▶ Start Game</button>}
+            <Link className="btn btn-outline btn-lg" to="/games/new">Log a past game</Link>
             <Link className="btn btn-outline btn-lg" to="/games">View Games</Link>
           </div>
         </div>
       </section>
 
+      {live && <div className="live-banner"><div><strong>Game in progress</strong> <span className="muted">· started {live.startTime} · {db.attendance.filter((a) => a.gameId === live.id).length} seated</span></div><Link className="btn btn-primary" to={`/games/${live.id}/live`}>Open live game</Link></div>}
+      {start && <StartGameModal onClose={() => setStart(false)} />}
       <div className="tiles">
         <div className="tile">
           <div className="tile-ico"><IcoCalendar /></div>

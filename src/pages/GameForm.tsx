@@ -9,7 +9,7 @@ import { CATEGORY_LABEL } from "../types";
 import { Card, Field, Initial, Modal, Search } from "../components/ui";
 import { IcoChevron, IcoPlus } from "../components/icons";
 
-interface EntryDraft { id: string; category: Category; amount: string; originalText: string; verification: Verification; deductFromRake: boolean; notes: string; dealerName: string; dealerPlayerId: string | null }
+export interface EntryDraft { id: string; category: Category; amount: string; originalText: string; verification: Verification; deductFromRake: boolean; notes: string; dealerName: string; dealerPlayerId: string | null }
 interface DistDraft { id: string; recipient: string; amount: string; originalText: string; verification: Verification; pooled: boolean }
 interface AttDraft { playerId: string; notes: string }
 type Step = 1 | 2 | 3;
@@ -295,7 +295,7 @@ export function AddPlayerModal({ initial = "", players, onClose, onPick, onCreat
   );
 }
 
-function ExpenseModal({ onClose, onAdd }: { onClose: () => void; onAdd: (e: EntryDraft) => void }) {
+export function ExpenseModal({ onClose, onAdd }: { onClose: () => void; onAdd: (e: EntryDraft) => void }) {
   const [category, setCategory] = useState<Category>("food");
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
@@ -313,7 +313,7 @@ function ExpenseModal({ onClose, onAdd }: { onClose: () => void; onAdd: (e: Entr
   );
 }
 
-function DealerModal({ onClose, onAdd }: { onClose: () => void; onAdd: (e: EntryDraft) => void }) {
+export function DealerModal({ onClose, onAdd }: { onClose: () => void; onAdd: (e: EntryDraft) => void }) {
   const { db } = useStore();
   const hosts = db.players.filter((p) => p.isHost);
   const [type, setType] = useState<"owner" | "alternating" | "external">("owner");

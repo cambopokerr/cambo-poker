@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { dealersFor, useStore } from "../data/store";
-import { computeGame, distributionsFor, entriesFor } from "../lib/finance";
+import { computeGame, distributionsFor, entriesFor, playerResults, potCheck } from "../lib/finance";
 import { fmtDate, fmtHours, money, signedMoney } from "../lib/format";
 import { CATEGORY_LABEL } from "../types";
 import { Card, ConfirmDialog, Empty, Initial, Stat, StatusBadge, Tabs, VerifyBadge } from "../components/ui";
@@ -19,6 +19,8 @@ export default function GameDetails() {
   if (!game) return <Empty title="Game not found" action={<Link className="btn" to="/games">Back to games</Link>} />;
 
   const f = computeGame(db, game);
+  const results = new Map(playerResults(db, game.id).map((r) => [r.playerId, r]));
+  const pot = potCheck(db, game.id);
   const entries = entriesFor(db, game.id);
   const dists = distributionsFor(db, game.id);
   const att = db.attendance.filter((a) => a.gameId === game.id);
@@ -46,6 +48,7 @@ export default function GameDetails() {
         </div>
       </div>
 
+      {game.status === "live" && <div className="live-banner"><div><strong>This game is in progress.</strong> <span className="muted">Add players, buy-ins, rake and expenses from the live dashboard.</span></div><Link className="btn btn-primary" to={`/games/${game.id}/live`}>Open live game</Link></div>}
       <Tabs value={tab} onChange={setTab} options={[{ value: "overview", label: "Overview" }, { value: "players", label: `Players (${att.length})` }, { value: "financials", label: "Financials" }, { value: "notes", label: "Notes" }]} />
 
       {f.reasons.length > 0 && tab !== "notes" && (
@@ -118,24 +121,29 @@ export default function GameDetails() {
       {tab === "players" && (
         <Card title={`Players (${att.length})`} className="mt" actions={<Link className="btn btn-sm" to={`/games/${game.id}/edit`}>Edit attendance</Link>}>
           <div className="table-wrap only-desktop"><table className="table">
-            <thead><tr><th>Name</th><th>Arrival</th><th>Departure</th><th>Notes</th><th className="td-chev" /></tr></thead>
+            <thead><tr><th>Name</th><th>Arrival</th><th>Departure</th><th className="num">Buy-ins</th><th className="num">Cash-out</th><th className="num">Result</th><th>Notes</th><th className="td-chev" /></tr></thead>
             <tbody>
               {att.map((a) => { const p = db.players.find((x) => x.id === a.playerId); return (
                 <tr key={a.playerId} className="clickable" onClick={() => nav(`/players/${a.playerId}`)}>
                   <td><Initial name={p?.name ?? "?"} />{p?.name ?? "?"}{p?.isHost && <> <span className="badge badge-host badge-plain">Host</span></>}{game.dealerPlayerId === a.playerId && <> <span className="badge badge-neutral badge-plain">Dealer</span></>}</td>
                   <td className="muted">{a.arrival || game.startTime || "–"}</td>
                   <td className="muted">{a.departure || game.finishTime || "–"}</td>
+                  <td className="num">{results.get(a.playerId)?.buyIns ? money(results.get(a.playerId)!.buyIns, true) : <span className="faint">–</span>}</td>
+                  <td className="num">{results.get(a.playerId)?.cashOut != null ? money(results.get(a.playerId)!.cashOut!, true) : <span className="faint">–</span>}</td>
+                  <td className={`num ${results.get(a.playerId)?.net == null ? "" : results.get(a.playerId)!.net! >= 0 ? "pos" : "neg"}`}>{results.get(a.playerId)?.net == null ? <span className="faint">–</span> : signedMoney(results.get(a.playerId)!.net!)}</td>
                   <td className="muted">{a.notes ?? "–"}</td>
                   <td className="td-chev">›</td>
                 </tr>
               ); })}
             </tbody>
           </table></div>
+          {pot.hasData && <p className="rule" style={{ marginTop: 10 }}>Pot check: {money(pot.buyIns, true)} bought in · {money(pot.cashOuts, true)} cashed out · {money(pot.rake, true)} rake · {Math.abs(pot.unaccounted) < 0.5 && pot.seated === 0 ? "all accounted for" : `${signedMoney(pot.unaccounted)} unaccounted${pot.seated ? ` (${pot.seated} not cashed out)` : ""}`}.</p>}
           <div className="list only-mobile">
-            {att.map((a) => { const p = db.players.find((x) => x.id === a.playerId); return (
+            {att.map((a) => { const p = db.players.find((x) => x.id === a.playerId); const r = results.get(a.playerId); return (
               <button key={a.playerId} type="button" className="list-row" onClick={() => nav(`/players/${a.playerId}`)}>
                 <Initial name={p?.name ?? "?"} size={36} />
-                <span className="list-main"><span className="list-title">{p?.name ?? "?"}</span><span className="list-sub">{a.notes ?? (p?.isHost ? "Host" : "")}</span></span>
+                <span className="list-main"><span className="list-title">{p?.name ?? "?"}</span><span className="list-sub">{r ? `${money(r.buyIns, true)} in${r.cashOut != null ? ` · ${money(r.cashOut, true)} out` : ""}` : (a.notes ?? (p?.isHost ? "Host" : ""))}</span></span>
+                {r?.net != null && <span className={`list-amt ${r.net >= 0 ? "pos" : "neg"}`}>{signedMoney(r.net)}</span>}
                 <IcoChevron className="chev" />
               </button>); })}
           </div>

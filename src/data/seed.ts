@@ -318,5 +318,5 @@ export function buildSeed(): DB {
         type: d.pooled ? "pooled_total" : "recipient_share", originalText: d.text, verification: d.v ?? "verified", notes: d.notes }),
     );
   });
-  return { version: 1, settings: DEFAULT_SETTINGS, games, players, attendance, entries, distributions };
+  return { version: 1, settings: DEFAULT_SETTINGS, games, players, attendance, entries, distributions, transactions: [] };
 }

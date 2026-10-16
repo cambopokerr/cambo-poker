@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useStore } from "../data/store";
-import { computeGame } from "../lib/finance";
-import { fmtDateShort, money } from "../lib/format";
+import { computeGame, playerLifetime, playerResults } from "../lib/finance";
+import { fmtDateShort, money, signedMoney } from "../lib/format";
 import { Card, Empty, Field, Initial, StatusBadge, Tabs } from "../components/ui";
 import { IcoChevron } from "../components/icons";
 import AttendancePattern from "../components/AttendancePattern";
@@ -29,6 +29,7 @@ export default function PlayerProfile() {
   const dealerEarned = db.entries.filter((e) => e.category === "dealer_earnings" && dealtGames.has(e.gameId) && (e.dealerPlayerId === p.id || !e.dealerPlayerId)).reduce((s, e) => s + (e.amount ?? 0), 0);
   const total = db.games.length;
   const tier = tierOf(history.length, total);
+  const life = playerLifetime(db, p.id);
   const avgPlayers = history.length ? Math.round(history.reduce((s, h) => s + db.attendance.filter((x) => x.gameId === h.g.id).length, 0) / history.length) : 0;
   const save = () => { dispatch({ type: "player:save", player: { ...p, name: name.trim() || p.name, notes: notes.trim(), aliases: aliases.split(",").map((s) => s.trim()).filter(Boolean) } }); setEdit(false); };
 
@@ -62,7 +63,7 @@ export default function PlayerProfile() {
       <div className="profile-stats mt" style={{ maxWidth: 560 }}>
         <div><strong>{history.length}</strong><span>Games played</span></div>
         <div><strong>{total ? Math.round((history.length / total) * 100) : 0}%</strong><span>Attendance</span></div>
-        <div><strong>{dealtGames.size ? money(dealerEarned, true) : avgPlayers}</strong><span>{dealtGames.size ? `Dealer earnings (${dealtGames.size} dealt)` : "Avg table size"}</span></div>
+        <div><strong className={life.games ? (life.net >= 0 ? "pos" : "neg") : undefined}>{life.games ? signedMoney(life.net) : dealtGames.size ? money(dealerEarned, true) : avgPlayers}</strong><span>{life.games ? `Won / lost (${life.games} tracked)` : dealtGames.size ? `Dealer earnings (${dealtGames.size} dealt)` : "Avg table size"}</span></div>
       </div>
 
       <Tabs value={tab} onChange={setTab} options={[{ value: "overview", label: "Overview" }, { value: "attendance", label: `Attendance (${history.length})` }, { value: "notes", label: "Notes" }]} />
@@ -86,7 +87,7 @@ export default function PlayerProfile() {
       {tab === "attendance" && (
         <Card>
           <div className="table-wrap only-desktop"><table className="table">
-            <thead><tr><th>Date</th><th>Note</th><th className="num">Players</th><th className="num">Rake</th><th>Status</th><th className="td-chev" /></tr></thead>
+            <thead><tr><th>Date</th><th>Note</th><th className="num">Players</th><th className="num">Rake</th><th className="num">Result</th><th>Status</th><th className="td-chev" /></tr></thead>
             <tbody>
               {history.map(({ a, g }) => { const f = computeGame(db, g); return (
                 <tr key={g.id} className="clickable" onClick={() => nav(`/games/${g.id}`)}>
@@ -94,6 +95,7 @@ export default function PlayerProfile() {
                   <td className="muted">{a.notes ?? ""}</td>
                   <td className="num">{db.attendance.filter((x) => x.gameId === g.id).length}</td>
                   <td className="num">{f.hasRake ? money(f.grossRake, true) : "–"}</td>
+                  <td className="num">{(() => { const r = playerResults(db, g.id).find((x) => x.playerId === p.id); return r?.net == null ? <span className="faint">–</span> : <span className={r.net >= 0 ? "pos" : "neg"}>{signedMoney(r.net)}</span>; })()}</td>
                   <td><StatusBadge status={f.status} /></td>
                   <td className="td-chev"><IcoChevron className="chev" /></td>
                 </tr>); })}

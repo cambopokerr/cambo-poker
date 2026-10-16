@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import StartGameModal, { liveGame } from "../components/StartGame";
 import { useStore } from "../data/store";
 import { computeGame, computeTotals } from "../lib/finance";
 import { money } from "../lib/format";
@@ -13,6 +14,9 @@ type Filter = GameStatus | "all";
 export default function Games() {
   const { db } = useStore();
   const [params, setParams] = useSearchParams();
+  const nav = useNavigate();
+  const [start, setStart] = useState(false);
+  const live = liveGame(db.games);
   const [q, setQ] = useState(params.get("q") ?? "");
   const [status, setStatus] = useState<Filter>("all");
   const [from, setFrom] = useState("");
@@ -40,7 +44,7 @@ export default function Games() {
   }, [db, q, status, from, to, dealer, sortAsc]);
 
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { all: db.games.length, reconciled: 0, needs_review: 0, incomplete: 0 };
+    const c: Record<Filter, number> = { all: db.games.length, live: 0, reconciled: 0, needs_review: 0, incomplete: 0 };
     for (const g of db.games) c[computeGame(db, g).status]++;
     return c;
   }, [db]);
@@ -51,10 +55,15 @@ export default function Games() {
     <>
       <div className="page-head">
         <div><h1>Games</h1><div className="sub">View and manage all poker sessions. Track players, rake, expenses and profit.</div></div>
+        <div className="actions only-desktop">
+          <Link className="btn" to="/games/new">Log a past game</Link>
+          <button className="btn btn-primary" onClick={() => setStart(true)}>▶ Start Game</button>
+        </div>
       </div>
+      {live && <div className="live-banner"><div><strong>Game in progress</strong> <span className="muted">· started {live.startTime}</span></div><Link className="btn btn-primary" to={`/games/${live.id}/live`}>Open live game</Link></div>}
 
       <Segmented value={status} onChange={setStatus} options={[
-        { value: "all", label: "All games", count: counts.all }, { value: "reconciled", label: "Completed", count: counts.reconciled },
+        { value: "all", label: "All games", count: counts.all }, ...(counts.live ? [{ value: "live" as Filter, label: "Live", count: counts.live }] : []), { value: "reconciled" as Filter, label: "Completed", count: counts.reconciled },
         { value: "needs_review", label: "Needs review", count: counts.needs_review }, { value: "incomplete", label: "Incomplete", count: counts.incomplete },
       ]} />
 
@@ -80,7 +89,9 @@ export default function Games() {
         <GameTable games={rows} />
         <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>Showing {rows.length} of {db.games.length} games</p>
       </Card>
-      <Link to="/games/new" className="fab only-mobile" aria-label="Log a game"><IcoPlus /></Link>
+      <button type="button" onClick={() => (live ? nav(`/games/${live.id}/live`) : setStart(true))} className="fab only-mobile" aria-label={live ? "Open live game" : "Start game"}><IcoPlus /></button>
+      <p className="only-mobile muted" style={{ textAlign: "center", fontSize: 13, marginTop: 12 }}><Link to="/games/new">Log a past game instead</Link></p>
+      {start && <StartGameModal onClose={() => setStart(false)} />}
     </>
   );
 }

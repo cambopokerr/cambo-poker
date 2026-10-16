@@ -77,6 +77,21 @@ export interface Game {
   sourceText: string;
   /** Outstanding questions about this record. Any entry here means "Needs review". */
   reviewNotes: string[];
+  /** "live" while the night is running (Start Game pressed, End Game not yet). Absent/"ended" otherwise. */
+  status?: "live" | "ended";
+  startedAt?: string;
+  endedAt?: string;
+}
+
+/** A player's money movement during a game: buying in or cashing out. */
+export interface PlayerTransaction {
+  id: ID;
+  gameId: ID;
+  playerId: ID;
+  kind: "buy_in" | "cash_out";
+  amount: number;
+  at: string;
+  notes?: string;
 }
 
 export interface Player {
@@ -107,12 +122,14 @@ export interface DB {
   attendance: Attendance[];
   entries: FinancialEntry[];
   distributions: Distribution[];
+  transactions: PlayerTransaction[];
 }
 
-export type GameStatus = "reconciled" | "needs_review" | "incomplete";
+export type GameStatus = "live" | "reconciled" | "needs_review" | "incomplete";
 
 export const STATUS_LABEL: Record<GameStatus, string> = {
-  reconciled: "Reconciled",
+  live: "In progress",
+  reconciled: "Completed",
   needs_review: "Needs review",
   incomplete: "Incomplete",
 };

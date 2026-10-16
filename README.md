@@ -14,6 +14,10 @@ npm run dev        # http://localhost:5173/cambo-poker/
 npm run build      # production build in dist/
 ```
 
+## Live game mode
+
+Press **Start Game** (header, Home or Games). The live dashboard runs a clock and lets you add players with buy-ins, cash players out, add rake, expenses and dealers as the night goes. **End Game** sets the finish time and turns the night into a normal game record. Buy-ins and cash-outs give each player a result for the night and a pot check (buy-ins should equal cash-outs plus rake once everyone has cashed out). **Log a past game** is still there for nights recorded afterwards.
+
 ## Where things live
 
 | Path | What |
@@ -22,7 +26,8 @@ npm run build      # production build in dist/
 | `src/lib/finance.ts` | Every calculation, with the accounting rules documented at the top |
 | `src/data/seed.ts` | The 28 imported nights, each with its original note and flagged questions |
 | `src/data/store.tsx` | State + persistence (browser localStorage, key `cambo-poker:v1`) |
-| `src/pages/` | One page per section: Dashboard, Games, GameDetails, GameForm, Players, PlayerProfile, Financials, Settings |
+| `src/pages/` | One page per section: Dashboard, Games, GameDetails, GameForm (past game wizard), LiveGame (running night), Players, PlayerProfile, Financials, Settings, Login |
+| `supabase/` | Database schema and migrations (`schema.sql`, `allowlist.sql`, `live.sql`) |
 
 ## Accounting rules
 
