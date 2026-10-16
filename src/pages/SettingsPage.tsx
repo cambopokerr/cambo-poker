@@ -99,7 +99,7 @@ export default function SettingsPage() {
                 </tbody>
               </table></div>
             ) : <p className="muted">Loading…</p>}
-            <p className="rule" style={{ marginTop: 10 }}>Anyone who signs in appears here as Waiting until someone with access approves them. The very first account is approved automatically.</p>
+            <p className="rule" style={{ marginTop: 10 }}>Sign-in is restricted to the allowed email list in the database (currently the Cambo Poker Google account only). Other accounts are rejected before they are created.</p>
           </Card>
         )}
 
