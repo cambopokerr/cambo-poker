@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "../data/store";
-import { attendanceLeaders, computeGame, computeTotals, gameSeries, hourlyTotals, monthlySeries } from "../lib/finance";
+import { attendanceLeaders, computeGame, computeTotals, gameSeries, hourly, hourlyTotals, monthlySeries } from "../lib/finance";
 import { fmtDateShort, fmtMonth, money, signedMoney } from "../lib/format";
 import { download, toCSV } from "../lib/csv";
 import { buildTextReport, exportExcel } from "../lib/export";
@@ -96,7 +96,7 @@ export default function Financials() {
     date: g.date ?? "", date_as_written: g.originalDateText, start: g.startTime, finish: g.finishTime, hours: g.durationHours ?? "", players, dealer: g.dealerName,
     gross_rake: f.grossRake, adjustments: f.adjustments, food: f.food, drinks_snacks: f.drinks, other_expenses: f.otherExpense, dealer_earnings: f.dealerEarnings,
     dealer_deducted_from_rake: f.dealerDeducted, net_distributable: f.netDistributable, ...Object.fromEntries(db.settings.hosts.map((h) => [`share_${h}`, f.shares[h].toFixed(2)])),
-    recorded_distribution: f.recordedDistribution ?? "", variance: f.variance ?? "", status: STATUS_LABEL[f.status], open_questions: f.reasons.join(" | "),
+    recorded_distribution: f.recordedDistribution ?? "", variance: f.variance ?? "", profit_per_hour: hourly(db, g, f)?.netPerHour.toFixed(2) ?? "", ...Object.fromEntries(db.settings.hosts.map((h) => [`${h}_per_hour`, hourly(db, g, f)?.perHost[h].perHour.toFixed(2) ?? ""])), status: STATUS_LABEL[f.status], open_questions: f.reasons.join(" | "),
   }))));
   const exportEntries = () => download(`cambo-poker-entries-${range}.csv`, toCSV(games.flatMap((g) => db.entries.filter((e) => e.gameId === g.id).map((e) => ({
     date: g.date ?? "", date_as_written: g.originalDateText, category: CATEGORY_LABEL[e.category], amount: e.amount ?? "", original_text: e.originalText, verification: e.verification,
@@ -179,7 +179,7 @@ export default function Financials() {
                 <button className="btn" onClick={exportGames}>Export CSV</button>
               </div>
               <div className="table-wrap"><table className="table">
-                <thead><tr><th>Date</th><th className="num">Players</th><th className="num">Rake (AUD)</th><th className="num">Expenses</th><th className="num">Dealer</th><th className="num">Net profit</th><th className="num">Recorded</th><th className="num">Variance</th><th>Status</th><th className="td-chev" /></tr></thead>
+                <thead><tr><th>Date</th><th className="num">Players</th><th className="num">Rake (AUD)</th><th className="num">Expenses</th><th className="num">Dealer</th><th className="num">Net profit</th><th className="num" title="Net profit per hour of the night">$/hour</th><th className="num" title="Each host's share per hour">Each /h</th><th className="num">Recorded</th><th className="num">Variance</th><th>Status</th><th className="td-chev" /></tr></thead>
                 <tbody>
                   {tableRows.map(({ g, f, players }) => (
                     <tr key={g.id} className="clickable" onClick={() => nav(`/games/${g.id}`)}>
@@ -189,6 +189,7 @@ export default function Financials() {
                       <td className="num">{f.expenses ? money(f.expenses, true) : "–"}</td>
                       <td className="num">{f.dealerEarnings ? money(f.dealerEarnings, true) : "–"}</td>
                       <td className="num">{f.hasRake ? money(f.netDistributable) : "–"}</td>
+                      {(() => { const hr = hourly(db, g, f); return <><td className="num">{hr ? money(hr.netPerHour, true) : <span className="faint">–</span>}</td><td className="num">{hr ? hosts.map((h) => `${h[0]} ${money(hr.perHost[h].perHour, true)}`).join(" · ") : <span className="faint">–</span>}</td></>; })()}
                       <td className="num">{f.recordedDistribution == null ? <span className="faint">–</span> : money(f.recordedDistribution)}</td>
                       <td className={`num ${f.variance != null && Math.abs(f.variance) > db.settings.reconcileTolerance ? "neg" : ""}`}>{f.variance == null ? "–" : signedMoney(f.variance)}</td>
                       <td><StatusBadge status={f.status} /></td>
