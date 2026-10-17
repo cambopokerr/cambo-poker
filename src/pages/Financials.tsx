@@ -1,13 +1,14 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "../data/store";
-import { computeGame, computeTotals, monthlySeries } from "../lib/finance";
+import { attendanceLeaders, computeGame, computeTotals, gameSeries, hourlyTotals, monthlySeries } from "../lib/finance";
 import { fmtDateShort, fmtMonth, money, signedMoney } from "../lib/format";
 import { download, toCSV } from "../lib/csv";
 import { CATEGORY_LABEL, STATUS_LABEL, type Category } from "../types";
 import { Card, Search, Stat, StatusBadge, Tabs } from "../components/ui";
 import { IcoChevron, IcoChip, IcoCoins, IcoDealer, IcoFinancials, IcoFood } from "../components/icons";
-import { C, DONUT, Donut, Legend, TrendChart, type TrendPoint } from "../components/charts";
+import { BarSeries, C, DONUT, Donut, Legend, LineSeries, TrendChart, type TrendPoint } from "../components/charts";
+import { IcoClock } from "../components/icons";
 
 type Tab = "games" | "expenses" | "dealers" | "profit" | "distributions";
 
@@ -35,6 +36,12 @@ export default function Financials() {
     return { label: fmtMonth(m.month).split(" ")[0], rake: m.rake, expenses: m.expenses, dealer, net: m.net };
   }), [db, games]);
 
+  const hr = useMemo(() => hourlyTotals(db, games), [db, games]);
+  const series = useMemo(() => gameSeries(db, games), [db, games]);
+  const hourlySeries = useMemo(() => series.filter((p) => p.netPerHour != null), [series]);
+  const txSeries = useMemo(() => series.filter((p) => p.hasTx), [series]);
+  const leaders = useMemo(() => attendanceLeaders(db, games, 10).map((l) => ({ label: l.name, games: l.games })), [db, games]);
+  const hosts = db.settings.hosts;
   const ids = useMemo(() => new Set(games.map((g) => g.id)), [games]);
   const expenseEntries = db.entries.filter((e) => ids.has(e.gameId) && ["food", "drinks", "other_expense"].includes(e.category));
   const expenseTotal = expenseEntries.reduce((s, e) => s + (e.amount ?? 0), 0);
@@ -103,6 +110,22 @@ export default function Financials() {
         <Stat icon={<IcoDealer />} label="Dealer earnings" value={money(t.dealerEarningsVerified + t.dealerEarningsUnverified, true)} sub={`${dealerGames} games`} />
         <Stat icon={<IcoFinancials />} label="Net profit (verified)" value={money(t.netVerified, true)} sub={`${t.reconciledGames} complete games`} tone="green" />
         <Stat icon={<IcoCoins />} label="Avg profit per game" value={money(t.reconciledGames ? t.netVerified / t.reconciledGames : 0, true)} sub={`From ${t.reconciledGames} verified games`} />
+        <Stat icon={<IcoClock />} label="Profit per hour" value={hr.games ? money(hr.netPerHour, true) : "–"} sub={hr.games ? `${hosts.map((h) => `${h} ${money(hr.perHost[h]?.perHour ?? 0, true)}/h`).join(" · ")}${hr.excluded ? ` · ${hr.excluded} without hours left out` : ""}` : "Add finish times to see this"} />
+      </div>
+
+      <div className="chart-grid mt">
+        <Card title="Profit per hour, by night" actions={<span className="faint">{hourlySeries.length} nights with hours</span>}>
+          {hourlySeries.length ? <LineSeries data={hourlySeries} dataKey="netPerHour" name="Profit per hour" fmt={(v) => `${money(v)}/h`} /> : <p className="muted">No nights with a finish time in range.</p>}
+        </Card>
+        <Card title="Players per night">
+          {series.length ? <BarSeries data={series} series={[{ key: "players", name: "Players", color: C.rake }]} fmt={(v) => `${v} players`} /> : <p className="muted">No dated games in range.</p>}
+        </Card>
+        <Card title="Most regular players" actions={<Link to="/players" className="faint">All players</Link>}>
+          {leaders.length ? <BarSeries data={leaders} series={[{ key: "games", name: "Nights", color: C.dealer }]} layout="vertical" height={Math.max(200, leaders.length * 26)} fmt={(v) => `${v} nights`} /> : <p className="muted">No attendance in range.</p>}
+        </Card>
+        <Card title="Buy-ins vs cash-outs" actions={<Legend items={[{ label: "Buy-ins", color: C.rake }, { label: "Cash-outs", color: C.expenses }]} />}>
+          {txSeries.length ? <BarSeries data={txSeries} series={[{ key: "buyIns", name: "Buy-ins", color: C.rake }, { key: "cashOuts", name: "Cash-outs", color: C.expenses }]} /> : <p className="muted">Only live games record buy-ins and cash-outs. Start a game from Log a Game and they will show here.</p>}
+        </Card>
       </div>
 
       <div className="grid grid-2-1 mt">

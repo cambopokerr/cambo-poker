@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { dealersFor, useStore } from "../data/store";
-import { computeGame, distributionsFor, entriesFor, playerResults, potCheck } from "../lib/finance";
+import { computeGame, distributionsFor, entriesFor, hourly, playerResults, potCheck } from "../lib/finance";
 import { fmtDate, fmtHours, money, signedMoney } from "../lib/format";
 import { CATEGORY_LABEL } from "../types";
 import { Card, ConfirmDialog, Empty, Initial, Stat, StatusBadge, Tabs, VerifyBadge } from "../components/ui";
@@ -28,6 +28,7 @@ export default function GameDetails() {
   const hostDealers = dealerList.filter((d) => d.playerId && db.players.find((x) => x.id === d.playerId)?.isHost);
   const dealer = dealerList.length ? dealerList.map((d) => d.name).join(hostDealers.length > 1 ? " & " : ", ") + (hostDealers.length > 1 ? " (alternating)" : "") : "–";
   const hosts = db.settings.hosts;
+  const hr = hourly(db, game, f);
   const equal = hosts.every((h) => Math.abs((db.settings.split[h] ?? 0) - 1 / hosts.length) < 1e-6);
 
   return (
@@ -92,6 +93,18 @@ export default function GameDetails() {
               <p className="rule" style={{ marginTop: 12 }}><code>net = rake + adjustments − expenses − dealer paid from rake</code></p>
             </Card>
             <div className="stack">
+            <Card title="Per hour" actions={<Link className="btn btn-sm" to={`/games/${game.id}/edit`}>Edit</Link>}>
+              {hr ? (
+                <>
+                  <dl className="kv">
+                    <dt>Night length</dt><dd>{fmtHours(hr.hours)}{hr.source === "computed" ? <span className="faint"> · from start and finish</span> : null}</dd>
+                    <dt><strong>Profit per hour</strong></dt><dd><strong>{money(hr.netPerHour)}</strong></dd>
+                    {hosts.map((h) => <Fragment key={h}><dt>{h} per hour</dt><dd>{money(hr.perHost[h].perHour)}<span className="faint"> · dealt {fmtHours(hr.perHost[h].hoursDealt)}{hr.perHost[h].tips ? ` · tips ${money(hr.perHost[h].tipsPerHour)}/h` : ""}</span></dd></Fragment>)}
+                  </dl>
+                  <p className="rule" style={{ marginTop: 10 }}>{hr.custom ? "Dealing hours were set by hand for this night." : "Hosts alternate one hour on, one off, so each is credited half the night. Edit the game to change."}</p>
+                </>
+              ) : <p className="muted" style={{ margin: 0 }}>{game.status === "live" ? "Available once the game ends." : !f.hasRake ? "Needs a rake figure." : "No finish time or hours recorded, so this night is left out of hourly averages. Add a finish time to include it."}</p>}
+            </Card>
             <Card title={`Dealer${dealerList.length === 1 ? "" : "(s)"}`} actions={<Link className="btn btn-sm" to={`/games/${game.id}/edit`}>Edit</Link>}>
               {dealerList.length ? (
                 <div className="mini-list">

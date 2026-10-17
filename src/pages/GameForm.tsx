@@ -51,6 +51,8 @@ export default function GameForm() {
   const [hours, setHours] = useState(draft ? (draft.hours != null ? String(draft.hours) : "") : existing?.durationSource === "recorded" && existing.durationHours != null ? String(existing.durationHours) : "");
   const [location, setLocation] = useState(draft ? draft.location ?? "" : existing ? existing.location ?? "" : "Home game");
   const [notes, setNotes] = useState(draft?.notes ?? existing?.notes ?? "");
+  const [dealSplit, setDealSplit] = useState<"half" | "custom">(existing?.dealingHours ? "custom" : "half");
+  const [dealHours, setDealHours] = useState<Record<string, string>>(() => Object.fromEntries(hosts.map((h) => [h, existing?.dealingHours?.[h] != null ? String(existing.dealingHours[h]) : ""])));
   // --- step 2 ---
   const [att, setAtt] = useState<AttDraft[]>(() => resolved?.att ?? db.attendance.filter((a) => a.gameId === id).map((a) => ({ playerId: a.playerId, notes: a.notes ?? "" })));
   const [newPlayers, setNewPlayers] = useState<Player[]>(resolved?.created ?? []);
@@ -118,6 +120,7 @@ export default function GameForm() {
       if (start && parseClock(start) == null) errs.push("Start time must look like 5pm or 5:20pm.");
       if (finish && parseClock(finish) == null) errs.push("Finish time must look like 12:30am.");
       if (hours && (isNaN(Number(hours)) || Number(hours) <= 0)) errs.push("Hours must be a positive number.");
+      if (dealSplit === "custom") for (const h of hosts) { const v = dealHours[h] ?? ""; if (v !== "" && (isNaN(Number(v)) || Number(v) < 0)) errs.push(`${h}'s dealing hours must be 0 or more.`); }
     }
     if (s === 3) {
       if (rake !== "" && (isNaN(Number(rake)) || Number(rake) < 0)) errs.push("Rake must be a number of 0 or more.");
@@ -142,6 +145,8 @@ export default function GameForm() {
       durationHours: recHours ?? computed, durationSource: recHours != null ? "recorded" : computed != null ? "computed" : null,
       dealerPlayerId: primaryDealer?.dealerPlayerId ?? null, dealerName: primaryDealer ? (primaryDealer.dealerName || nameOf(primaryDealer.dealerPlayerId ?? "")) : "",
       location: location.trim() || undefined, notes: notes.trim(), sourceText: draft?.sourceText ?? existing?.sourceText ?? "", reviewNotes: reviewNotes.map((r) => r.trim()).filter(Boolean),
+      status: existing?.status, startedAt: existing?.startedAt, endedAt: existing?.endedAt,
+      dealingHours: dealSplit === "custom" && hosts.some((h) => (dealHours[h] ?? "") !== "") ? Object.fromEntries(hosts.filter((h) => (dealHours[h] ?? "") !== "").map((h) => [h, Number(dealHours[h])])) : undefined,
     };
     const attendance: Attendance[] = att.map((a) => ({ gameId: gid, playerId: a.playerId, notes: a.notes.trim() || undefined }));
     const fin: FinancialEntry[] = [
@@ -202,6 +207,20 @@ export default function GameForm() {
             <Field label="Location"><input className="input" list="locations" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Home game" /><datalist id="locations"><option value="Home game" /></datalist></Field>
             <label className="check span-2" style={{ alignSelf: "end", paddingBottom: 10 }}><input type="checkbox" checked={noDate} onChange={(e) => setNoDate(e.target.checked)} /> Date unknown</label>
             <Field label="Notes" className="span-4"><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add any notes…" /></Field>
+            {hosts.length > 1 && (
+              <div className="span-4">
+                <div className="field-label" style={{ marginBottom: 6 }}>Dealing split (for $/hour)</div>
+                <div className="seg" style={{ display: "flex" }}>
+                  <button type="button" className={dealSplit === "half" ? "active" : ""} onClick={() => setDealSplit("half")}>Alternated, half each</button>
+                  <button type="button" className={dealSplit === "custom" ? "active" : ""} onClick={() => setDealSplit("custom")}>Set hours</button>
+                </div>
+                {dealSplit === "custom" && (
+                  <div className="form-grid" style={{ marginTop: 10 }}>
+                    {hosts.map((h) => <Field key={h} label={`${h} dealt (hours)`} className="span-2"><input className="input" inputMode="decimal" value={dealHours[h] ?? ""} onChange={(e) => setDealHours((x) => ({ ...x, [h]: e.target.value }))} placeholder="0" /></Field>)}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </Card>
       )}

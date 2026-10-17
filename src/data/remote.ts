@@ -15,14 +15,14 @@ const toGameRow = (g: Game): Row => ({
   id: g.id, date: g.date, original_date_text: g.originalDateText, start_time: g.startTime, finish_time: g.finishTime,
   duration_hours: g.durationHours, duration_source: g.durationSource, dealer_player_id: g.dealerPlayerId, dealer_name: g.dealerName,
   location: g.location ?? null, notes: g.notes, source_text: g.sourceText, review_notes: g.reviewNotes, updated_at: new Date().toISOString(),
-  status: g.status ?? null, started_at: g.startedAt ?? null, ended_at: g.endedAt ?? null,
+  status: g.status ?? null, started_at: g.startedAt ?? null, ended_at: g.endedAt ?? null, dealing_hours: g.dealingHours ?? null,
 });
 const fromGameRow = (r: Row): Game => ({
   id: r.id as string, date: (r.date as string | null) ?? null, originalDateText: (r.original_date_text as string) ?? "", startTime: (r.start_time as string) ?? "",
   finishTime: (r.finish_time as string) ?? "", durationHours: num(r.duration_hours), durationSource: (r.duration_source as Game["durationSource"]) ?? null,
   dealerPlayerId: (r.dealer_player_id as string | null) ?? null, dealerName: (r.dealer_name as string) ?? "", location: (r.location as string | null) ?? undefined,
   notes: (r.notes as string) ?? "", sourceText: (r.source_text as string) ?? "", reviewNotes: (r.review_notes as string[]) ?? [],
-  status: (r.status as Game["status"]) ?? undefined, startedAt: (r.started_at as string | null) ?? undefined, endedAt: (r.ended_at as string | null) ?? undefined,
+  status: (r.status as Game["status"]) ?? undefined, startedAt: (r.started_at as string | null) ?? undefined, endedAt: (r.ended_at as string | null) ?? undefined, dealingHours: (r.dealing_hours as Record<string, number> | null) ?? undefined,
 });
 const toTxRow = (t: PlayerTransaction): Row => ({ id: t.id, game_id: t.gameId, player_id: t.playerId, kind: t.kind, amount: t.amount, at: t.at, notes: t.notes ?? null });
 const fromTxRow = (r: Row): PlayerTransaction => ({ id: r.id as string, gameId: r.game_id as string, playerId: r.player_id as string, kind: r.kind as PlayerTransaction["kind"], amount: Number(r.amount), at: r.at as string, notes: (r.notes as string) ?? undefined });

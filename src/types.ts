@@ -81,6 +81,8 @@ export interface Game {
   status?: "live" | "ended";
   startedAt?: string;
   endedAt?: string;
+  /** Hours each host dealt this night, keyed by host name. Absent = the hosts alternated and dealt half each. */
+  dealingHours?: Record<string, number>;
 }
 
 /** A player's money movement during a game: buying in or cashing out. */

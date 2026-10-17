@@ -19,6 +19,7 @@
  *  8. "Verified" totals on the Dashboard/Financials include only entries marked verified. Flagged amounts are
  *     shown separately as "needs review" and never mixed into verified totals.
  */
+import { CATEGORY_LABEL } from "../types";
 import type { DB, Distribution, FinancialEntry, Game, GameStatus, Settings } from "../types";
 
 export interface GameFinance {
@@ -252,4 +253,110 @@ export function playerLifetime(db: DB, playerId: string): { games: number; buyIn
   for (const g of db.games) for (const r of playerResults(db, g.id)) if (r.playerId === playerId && !r.inPlay) byGame.set(g.id, r);
   for (const r of byGame.values()) { games++; buyIns += r.buyIns; cashOut += r.cashOut ?? 0; }
   return { games, buyIns, cashOut, net: cashOut - buyIns };
+}
+
+
+/* ---------- hourly ---------- */
+
+export interface HostHourly { share: number; hoursDealt: number; perHour: number; tips: number; tipsPerHour: number }
+export interface Hourly {
+  hours: number;
+  source: "recorded" | "computed";
+  /** Net distributable per hour of the night. */
+  netPerHour: number;
+  /** true when dealingHours was set by hand for this game; false = alternated, half each. */
+  custom: boolean;
+  perHost: Record<string, HostHourly>;
+}
+
+/**
+ * Per-hour view of one game. null when the night has no usable length (no finish time and no recorded hours),
+ * so games with unknown hours never skew an hourly average. The hosts alternate dealing (one hour on, one off),
+ * so each is credited half the night unless game.dealingHours says otherwise.
+ */
+export function hourly(db: DB, game: Game, f: GameFinance = computeGame(db, game)): Hourly | null {
+  if (game.status === "live" || game.durationHours == null || game.durationHours <= 0 || !f.hasRake) return null;
+  const hours = game.durationHours;
+  const hosts = db.settings.hosts;
+  const custom = !!game.dealingHours && hosts.some((h) => game.dealingHours![h] != null);
+  const tipsFor = (h: string) => {
+    const hp = db.players.find((p) => p.isHost && p.name === h);
+    return sum(entriesFor(db, game.id).filter((e) => e.category === "dealer_earnings" && (e.dealerPlayerId === hp?.id || (!e.dealerPlayerId && e.dealerName === h))).map(amt));
+  };
+  const perHost: Record<string, HostHourly> = {};
+  for (const h of hosts) {
+    const hoursDealt = custom ? Math.max(game.dealingHours?.[h] ?? 0, 0) : hours / hosts.length;
+    const share = f.shares[h] ?? 0;
+    const tips = tipsFor(h);
+    perHost[h] = { share, hoursDealt, perHour: share / hours, tips, tipsPerHour: hoursDealt > 0 ? tips / hoursDealt : 0 };
+  }
+  return { hours, source: game.durationSource ?? "computed", netPerHour: f.netDistributable / hours, custom, perHost };
+}
+
+export interface HourlyTotals { games: number; excluded: number; hours: number; net: number; netPerHour: number; perHost: Record<string, { perHour: number; hoursDealt: number; tipsPerHour: number }> }
+
+/** Hours-weighted average over the games that have a usable length. `excluded` counts the ones left out. */
+export function hourlyTotals(db: DB, games: Game[] = db.games): HourlyTotals {
+  let hours = 0, net = 0, n = 0, excluded = 0;
+  const acc: Record<string, { share: number; hoursDealt: number; tips: number }> = {};
+  for (const g of games) {
+    const h = hourly(db, g);
+    if (!h) { if (g.status !== "live") excluded++; continue; }
+    n++; hours += h.hours; net += h.netPerHour * h.hours;
+    for (const [name, x] of Object.entries(h.perHost)) {
+      acc[name] ??= { share: 0, hoursDealt: 0, tips: 0 };
+      acc[name].share += x.share; acc[name].hoursDealt += x.hoursDealt; acc[name].tips += x.tips;
+    }
+  }
+  const perHost = Object.fromEntries(Object.entries(acc).map(([k, v]) => [k, { perHour: hours ? v.share / hours : 0, hoursDealt: v.hoursDealt, tipsPerHour: v.hoursDealt ? v.tips / v.hoursDealt : 0 }]));
+  return { games: n, excluded, hours, net, netPerHour: hours ? net / hours : 0, perHost };
+}
+
+/* ---------- series for graphs ---------- */
+
+export interface GamePoint { id: string; label: string; date: string; netPerHour: number | null; players: number; buyIns: number; cashOuts: number; net: number; hasTx: boolean }
+
+/** One point per dated game, oldest first. */
+export function gameSeries(db: DB, games: Game[] = db.games): GamePoint[] {
+  return games
+    .filter((g) => g.date != null && g.status !== "live")
+    .sort((a, b) => a.date!.localeCompare(b.date!))
+    .map((g) => {
+      const f = computeGame(db, g);
+      const h = hourly(db, g, f);
+      const pc = potCheck(db, g.id);
+      const d = new Date(g.date! + "T12:00:00");
+      return { id: g.id, label: `${d.getDate()} ${d.toLocaleString("en-AU", { month: "short" })}`, date: g.date!, netPerHour: h ? Math.round(h.netPerHour) : null, players: db.attendance.filter((a) => a.gameId === g.id).length, buyIns: pc.buyIns, cashOuts: pc.cashOuts, net: f.netDistributable, hasTx: pc.hasData };
+    });
+}
+
+/** Players ranked by how many of the given games they came to. */
+export function attendanceLeaders(db: DB, games: Game[] = db.games, n = 10): Array<{ playerId: string; name: string; games: number }> {
+  const ids = new Set(games.map((g) => g.id));
+  const count = new Map<string, number>();
+  for (const a of db.attendance) if (ids.has(a.gameId)) count.set(a.playerId, (count.get(a.playerId) ?? 0) + 1);
+  return [...count.entries()]
+    .map(([playerId, games]) => ({ playerId, name: db.players.find((p) => p.id === playerId)?.name ?? "?", games }))
+    .filter((x) => !db.players.find((p) => p.id === x.playerId)?.isHost)
+    .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name))
+    .slice(0, n);
+}
+
+
+/* ---------- missing values ---------- */
+
+export type MissingKind = "date" | "hours" | "rake" | "amount";
+export interface MissingItem { kind: MissingKind; label: string; entryId?: string }
+
+/** Blanks that stop a game from being fully counted. Open questions are separate (they live in reviewNotes). */
+export function missingInfo(db: DB, game: Game): MissingItem[] {
+  if (game.status === "live") return [];
+  const out: MissingItem[] = [];
+  if (game.date == null) out.push({ kind: "date", label: "Date" });
+  if (game.durationHours == null) out.push({ kind: "hours", label: "Finish time or hours" });
+  const es = entriesFor(db, game.id);
+  const rake = es.filter((e) => e.category === "rake");
+  if (!rake.length) out.push({ kind: "rake", label: "Rake" });
+  for (const e of es) if (e.amount == null) out.push({ kind: "amount", label: e.category === "rake" ? "Rake" : `${CATEGORY_LABEL[e.category]}${e.originalText ? ` (“${e.originalText}”)` : ""}`, entryId: e.id });
+  return out;
 }

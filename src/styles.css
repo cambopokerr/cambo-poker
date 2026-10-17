@@ -560,3 +560,11 @@ select option { background: var(--panel-solid); }
 .draft-grid dt { color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
 .draft-grid dd { margin: 2px 0 0; font-size: 15px; }
 .badge-new { background: rgba(255, 196, 0, 0.14); color: #ffd666; }
+
+/* Missing info */
+.live-banner.warn { border-color: rgba(255, 196, 0, 0.45); background: rgba(255, 196, 0, 0.1); }
+.missing-game { display: grid; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.missing-game:last-child { border-bottom: 0; }
+.missing-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.missing-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }

@@ -12,6 +12,7 @@ import SettingsPage from "./pages/SettingsPage";
 import Login from "./pages/Login";
 import LiveGame from "./pages/LiveGame";
 import ImportNotes from "./pages/ImportNotes";
+import MissingInfo from "./pages/MissingInfo";
 
 function Gate() {
   const { remote, status } = useStore();
@@ -26,6 +27,7 @@ function Gate() {
         <Route path="/games" element={<Games />} />
         <Route path="/games/new" element={<GameForm />} />
         <Route path="/games/paste" element={<ImportNotes />} />
+        <Route path="/games/missing" element={<MissingInfo />} />
         <Route path="/games/:id" element={<GameDetails />} />
         <Route path="/games/:id/edit" element={<GameForm />} />
         <Route path="/games/:id/live" element={<LiveGame />} />

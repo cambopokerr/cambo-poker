@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "../data/store";
-import { computeGame, computeTotals, monthlySeries } from "../lib/finance";
+import { computeGame, computeTotals, hourlyTotals, missingInfo, monthlySeries } from "../lib/finance";
 import { fmtDateShort, fmtMonth, money } from "../lib/format";
 import { Card, StatusBadge } from "../components/ui";
-import { IcoCalendar, IcoChevron, IcoChip, IcoCoins, IcoDealer, IcoFinancials, IcoPlayers, IcoPlus } from "../components/icons";
+import { IcoCalendar, IcoChevron, IcoChip, IcoCoins, IcoDealer, IcoFinancials, IcoPlayers, IcoPlus, IcoClock } from "../components/icons";
 import { C, Legend, TrendChart, type TrendPoint } from "../components/charts";
 import { LogGameModal, liveGame } from "../components/StartGame";
 
@@ -23,6 +23,8 @@ export default function Dashboard() {
   const needs = t.games - t.reconciledGames;
   const live = liveGame(db.games);
   const [start, setStart] = useState(false);
+  const hr = useMemo(() => hourlyTotals(db), [db]);
+  const missingGames = useMemo(() => db.games.filter((g) => missingInfo(db, g).length), [db]);
 
   // Dealer assignment: any combination: one owner, both owners alternating, and/or an outsourced dealer.
   const [picked, setPicked] = useState<Record<string, boolean>>({});
@@ -54,6 +56,7 @@ export default function Dashboard() {
       </section>
 
       {live && <div className="live-banner"><div><strong>Game in progress</strong> <span className="muted">· started {live.startTime} · {db.attendance.filter((a) => a.gameId === live.id).length} seated</span></div><Link className="btn btn-primary" to={`/games/${live.id}/live`}>Open live game</Link></div>}
+      {missingGames.length > 0 && <div className="live-banner warn"><div><strong>{missingGames.length} game{missingGames.length === 1 ? " has" : "s have"} missing info</strong> <span className="muted">· dates, finish times or amounts left blank in the notes</span></div><Link className="btn btn-primary" to="/games/missing">Fill them in</Link></div>}
       {start && <LogGameModal onClose={() => setStart(false)} />}
       <div className="tiles">
         <div className="tile">
@@ -67,6 +70,10 @@ export default function Dashboard() {
         <div className="tile tile-green">
           <div className="tile-ico"><IcoFinancials /></div>
           <div><div className="tile-label">Verified Profit</div><div className="tile-value">{money(t.netVerified, true)}</div><div className="tile-sub">Net profit from {t.reconciledGames} reconciled games (AUD)</div></div>
+        </div>
+        <div className="tile">
+          <div className="tile-ico"><IcoClock /></div>
+          <div><div className="tile-label">Profit per Hour</div><div className="tile-value">{hr.games ? money(hr.netPerHour, true) : "–"}</div><div className="tile-sub">{hr.games ? `${hosts.map((h) => `${h} ${money(hr.perHost[h]?.perHour ?? 0, true)}/h`).join(" · ")} · ${hr.games} nights with hours` : "Needs finish times"}</div></div>
         </div>
         <div className="tile">
           <div className="tile-ico"><IcoDealer /></div>

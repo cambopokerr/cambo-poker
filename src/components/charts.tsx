@@ -1,4 +1,4 @@
-import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { money } from "../lib/format";
 
 export const C = { rake: "#1e9bff", expenses: "#c9d4e5", dealer: "#3b6fb6", net: "#67e8f9", muted: "#4b5b73" };
@@ -58,6 +58,42 @@ export function Donut({ data, total, label }: { data: Array<{ name: string; valu
         })}
       </svg>
       <div className="donut-center"><div><strong>{money(total, true)}</strong><span>{label}</span></div></div>
+    </div>
+  );
+}
+
+
+/** Single line over categories, e.g. $/hour per game. Null values leave a gap. */
+export function LineSeries({ data, dataKey, name, height = 220, color = C.net, fmt = (v: number) => money(v) }: { data: object[]; dataKey: string; name: string; height?: number; color?: string; fmt?: (v: number) => string }) {
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer>
+        <LineChart data={data} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
+          <CartesianGrid stroke="rgba(120,170,255,0.08)" vertical={false} />
+          <XAxis dataKey="label" {...axis} interval="preserveStartEnd" minTickGap={18} />
+          <YAxis {...axis} tickFormatter={kfmt} />
+          <Tooltip {...tip} formatter={(v) => fmt(Number(v))} />
+          <Line type="monotone" dataKey={dataKey} name={name} stroke={color} strokeWidth={2} dot={{ r: 3, fill: color, strokeWidth: 0 }} activeDot={{ r: 5 }} connectNulls={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** One or two bar series over categories. */
+export function BarSeries({ data, series, height = 220, fmt = (v: number) => money(v), layout = "horizontal" }: { data: object[]; series: Array<{ key: string; name: string; color: string }>; height?: number; fmt?: (v: number) => string; layout?: "horizontal" | "vertical" }) {
+  const vertical = layout === "vertical";
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer>
+        <BarChart data={data} layout={layout} margin={{ top: 10, right: 8, left: vertical ? 8 : -10, bottom: 0 }} barGap={3}>
+          <CartesianGrid stroke="rgba(120,170,255,0.08)" vertical={vertical} horizontal={!vertical} />
+          {vertical ? <XAxis type="number" {...axis} tickFormatter={kfmt} allowDecimals={false} /> : <XAxis dataKey="label" {...axis} interval="preserveStartEnd" minTickGap={18} />}
+          {vertical ? <YAxis type="category" dataKey="label" {...axis} width={70} interval={0} /> : <YAxis {...axis} tickFormatter={kfmt} allowDecimals={false} />}
+          <Tooltip {...tip} formatter={(v) => fmt(Number(v))} cursor={{ fill: "rgba(30,155,255,0.06)" }} />
+          {series.map((s) => <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} radius={vertical ? [0, 4, 4, 0] : [4, 4, 0, 0]} maxBarSize={22} isAnimationActive={false} />)}
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
