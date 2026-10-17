@@ -37,7 +37,7 @@ export default function GameTable({ games, compact = false }: { games: Game[]; c
           <tbody>
             {rows.map(({ g, f, players }) => (
               <tr key={g.id} className="clickable" onClick={() => nav(`/games/${g.id}`)}>
-                <td><span className="row-link">{fmtDateShort(g.date)}</span>{g.date == null && <div className="faint" style={{ fontSize: 12 }}>{g.originalDateText}</div>}</td>
+                <td className="date-cell"><span className="row-link">{g.date == null ? "No date" : fmtDateShort(g.date)}</span>{g.date == null && g.originalDateText && <div className="faint date-note" title={g.originalDateText}>{g.originalDateText}</div>}</td>
                 {!compact && <td className="muted">{g.startTime || "–"}</td>}
                 {!compact && <td className="muted">{fmtHours(g.durationHours)}</td>}
                 <td className="num">{players}</td>

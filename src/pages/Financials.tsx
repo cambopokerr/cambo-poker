@@ -163,7 +163,7 @@ export default function Financials() {
                 <tbody>
                   {tableRows.map(({ g, f, players }) => (
                     <tr key={g.id} className="clickable" onClick={() => nav(`/games/${g.id}`)}>
-                      <td><span className="row-link">{fmtDateShort(g.date)}</span>{g.date == null && <div className="faint" style={{ fontSize: 12 }}>{g.originalDateText}</div>}</td>
+                      <td className="date-cell"><span className="row-link">{g.date == null ? "No date" : fmtDateShort(g.date)}</span>{g.date == null && g.originalDateText && <div className="faint date-note" title={g.originalDateText}>{g.originalDateText}</div>}</td>
                       <td className="num">{players}</td>
                       <td className="num">{f.hasRake ? money(f.grossRake, true) : <span className="neg">?</span>}</td>
                       <td className="num">{f.expenses ? money(f.expenses, true) : "–"}</td>
@@ -193,7 +193,7 @@ export default function Financials() {
               <div className="table-wrap"><table className="table">
                 <thead><tr><th>Date</th><th>Category</th><th className="num">Amount</th><th>Original text</th><th>Status</th></tr></thead>
                 <tbody>{expenseEntries.sort((a, b) => (db.games.find((g) => g.id === b.gameId)?.date ?? "").localeCompare(db.games.find((g) => g.id === a.gameId)?.date ?? "")).map((e) => { const g = db.games.find((x) => x.id === e.gameId)!; return (
-                  <tr key={e.id} className="clickable" onClick={() => nav(`/games/${g.id}`)}><td>{fmtDateShort(g.date)}</td><td>{CATEGORY_LABEL[e.category]}</td><td className="num">{money(e.amount)}</td><td className="mono">{e.originalText}</td><td>{e.verification === "verified" ? <span className="badge badge-reconciled">Verified</span> : <span className="badge badge-needs_review">Needs review</span>}</td></tr>); })}</tbody>
+                  <tr key={e.id} className="clickable" onClick={() => nav(`/games/${g.id}`)}><td className="date-cell">{g.date == null ? "No date" : fmtDateShort(g.date)}</td><td>{CATEGORY_LABEL[e.category]}</td><td className="num">{money(e.amount)}</td><td className="mono">{e.originalText}</td><td>{e.verification === "verified" ? <span className="badge badge-reconciled">Verified</span> : <span className="badge badge-needs_review">Needs review</span>}</td></tr>); })}</tbody>
               </table></div>
             </>
           )}
