@@ -5,7 +5,7 @@
 import type { DB, Game } from "../types";
 import { CATEGORY_LABEL, STATUS_LABEL } from "../types";
 import { computeGame, computeTotals, hourly, hourlyTotals, missingInfo, playerResults } from "./finance";
-import { fmtDate, fmtHours, money } from "./format";
+import { fmtDate, fmtDateShort, fmtHours, money } from "./format";
 
 type Row = Record<string, string | number | null>;
 
@@ -54,7 +54,8 @@ export function buildSheets(db: DB, games: Game[] = db.games): Record<string, Ro
     const tx = db.transactions.filter((t) => t.playerId === p.id && ids.has(t.gameId));
     const buyIns = tx.filter((t) => t.kind !== "cash_out").reduce((s, t) => s + t.amount, 0);
     const cashOuts = tx.filter((t) => t.kind === "cash_out").reduce((s, t) => s + t.amount, 0);
-    return { player_id: p.id, name: p.name, aliases: p.aliases.join(", "), host: p.isHost ? "yes" : "no", games_attended: att.length, first_game: dates[0] ?? "", last_game: dates[dates.length - 1] ?? "", total_buy_ins: tx.length ? buyIns : null, total_cash_outs: tx.length ? cashOuts : null, net_result: tx.length ? cashOuts - buyIns : null, notes: p.notes };
+    const attNotes = att.map((a) => a.notes ? `${db.games.find((g) => g.id === a.gameId)?.date ?? "?"}: ${a.notes}` : "").filter(Boolean).join(" | ");
+    return { player_id: p.id, name: p.name, aliases: p.aliases.join(", "), host: p.isHost ? "yes" : "no", games_attended: att.length, share_of_games: gs.length ? Number((att.length / gs.length).toFixed(3)) : null, first_game: dates[0] ?? "", last_game: dates[dates.length - 1] ?? "", dates_attended: dates.join(", "), attendance_notes: attNotes, total_buy_ins: tx.length ? buyIns : null, total_cash_outs: tx.length ? cashOuts : null, net_result: tx.length ? cashOuts - buyIns : null, notes: p.notes };
   }).sort((a, b) => Number(b.games_attended) - Number(a.games_attended) || String(a.name).localeCompare(String(b.name)));
 
   const Attendance: Row[] = gs.flatMap((g) => db.attendance.filter((a) => a.gameId === g.id).map((a) => ({ game_id: g.id, date: g.date ?? "", date_as_written: g.originalDateText, player: name(a.playerId), note: a.notes ?? "" })));
@@ -88,7 +89,23 @@ export function buildSheets(db: DB, games: Game[] = db.games): Record<string, Ro
     { item: "Exported", value: new Date().toISOString() },
   ];
 
-  return { Summary, Games, Players, Attendance, Money, Payouts, "Buy-ins": BuyIns };
+  const Transactions: Row[] = db.transactions.filter((tx) => ids.has(tx.gameId)).sort((a, b) => a.at.localeCompare(b.at)).map((tx) => ({ game_id: tx.gameId, date: db.games.find((g) => g.id === tx.gameId)?.date ?? "", player: name(tx.playerId), kind: tx.kind === "buy_in" ? "buy-in" : tx.kind === "rebuy" ? "rebuy" : "cash-out", amount: tx.amount, time: tx.at, notes: tx.notes ?? "" }));
+
+  const Questions: Row[] = gs.flatMap((g) => g.reviewNotes.map((q, i) => ({ game_id: g.id, date: g.date ?? "", date_as_written: g.originalDateText, question_no: i + 1, open_question: q })));
+
+  const Missing: Row[] = gs.flatMap((g) => missingInfo(db, g).map((m) => ({ game_id: g.id, date: g.date ?? "", date_as_written: g.originalDateText, missing: m.label })));
+
+  const Settings: Row[] = [
+    { setting: "Business name", value: db.settings.businessName },
+    { setting: "Hosts", value: hosts.join(", ") },
+    ...hosts.map((h) => ({ setting: `Split ${h}`, value: `${Math.round((db.settings.split[h] ?? 0) * 100)}%` })),
+    { setting: "Currency", value: db.settings.currency },
+    { setting: "Dealer earnings deducted from rake by default", value: db.settings.dealerPaidFromRakeByDefault ? "yes" : "no" },
+    { setting: "Reconciliation tolerance ($)", value: db.settings.reconcileTolerance },
+    { setting: "Hosts alternate dealing", value: "one hour on, one off; each credited half the night unless a game sets dealing hours" },
+  ];
+
+  return { Summary, Games, Players, Attendance, Money, Payouts, "Buy-ins": BuyIns, Transactions, Questions, Missing, Settings };
 }
 
 export async function exportExcel(db: DB, games: Game[] = db.games, filename = `cambo-poker-${new Date().toISOString().slice(0, 10)}.xlsx`) {
@@ -115,6 +132,7 @@ export function buildTextReport(db: DB, games: Game[] = db.games): string {
   L.push(`Hosts: ${hosts.join(" & ")}. Profit split ${hosts.map((h) => `${h} ${Math.round((db.settings.split[h] ?? 0) * 100)}%`).join(", ")}. All amounts AUD.`);
   L.push("Rule: net profit = rake + cash adjustments - expenses - dealer earnings paid from rake. Dealer tips kept by the dealer are reported but not deducted.");
   L.push("Figures marked (?) were unclear in the original hand-written note and need checking. Games are 'Completed' only when every figure is verified and no questions are open.");
+  L.push(`Settings: reconciliation tolerance $${db.settings.reconcileTolerance}; dealer earnings ${db.settings.dealerPaidFromRakeByDefault ? "are" : "are not"} deducted from rake by default; hosts alternate dealing one hour on, one off, so each is credited half of every night unless a game says otherwise.`);
   L.push("");
   L.push("SUMMARY");
   L.push(`Games: ${t.games} (${t.reconciledGames} completed). Player attendances: ${t.attendances}. Distinct players: ${db.players.filter((p) => !p.isHost).length}.`);
@@ -143,15 +161,38 @@ export function buildTextReport(db: DB, games: Game[] = db.games): string {
     parts.push(`  Net profit: ${f.hasRake ? money(f.netDistributable) : "n/a"}${f.hasRake ? ` → ${hosts.map((hn) => `${hn} ${money(f.shares[hn])}`).join(", ")}` : ""}${f.recordedDistribution != null ? ` · recorded split ${money(f.recordedDistribution)}${f.variance != null && Math.abs(f.variance) > db.settings.reconcileTolerance ? ` (differs by ${money(f.variance)})` : ""}` : ""}${h ? ` · ${money(h.netPerHour)}/h` : ""}`);
     const rs = playerResults(db, g.id);
     if (rs.length) parts.push(`  Buy-ins: ${rs.map((r) => `${name(r.playerId)} in ${money(r.buyIns)}${r.rebuyCount ? ` (${r.rebuyCount} rebuy${r.rebuyCount === 1 ? "" : "s"})` : ""}${r.cashOut != null ? ` out ${money(r.cashOut)}` : ", still in"}`).join("; ")}`);
+    if (g.location) parts.push(`  Location: ${g.location}`);
+    if (g.dealingHours) parts.push(`  Dealing hours: ${hosts.map((hn) => `${hn} ${g.dealingHours?.[hn] ?? 0} h`).join(", ")}`);
     if (g.reviewNotes.length) parts.push(`  Open questions: ${g.reviewNotes.join(" | ")}`);
+    const miss = missingInfo(db, g);
+    if (miss.length) parts.push(`  Missing: ${miss.map((m) => m.label).join(", ")}`);
     if (g.notes) parts.push(`  Notes: ${g.notes}`);
+    if (g.sourceText) parts.push(`  Original note: ${g.sourceText.replace(/\n+/g, " / ")}`);
     L.push(...parts, "");
   }
-  L.push("PLAYERS BY ATTENDANCE");
-  const count = new Map<string, number>();
+  L.push("PLAYERS (most regular first)");
   const gids = new Set(gs.map((g) => g.id));
-  for (const a of db.attendance) if (gids.has(a.gameId)) count.set(a.playerId, (count.get(a.playerId) ?? 0) + 1);
-  const ranked = [...count.entries()].map(([pid, n]) => ({ p: db.players.find((x) => x.id === pid), n })).filter((x) => x.p && !x.p.isHost).sort((a, b) => b.n - a.n || a.p!.name.localeCompare(b.p!.name));
-  L.push(ranked.map((x) => `${x.p!.name} ${x.n}`).join(", "));
+  const dateOf = (gid: string) => db.games.find((g) => g.id === gid);
+  const rows = db.players.map((p) => {
+    const att = db.attendance.filter((a) => a.playerId === p.id && gids.has(a.gameId));
+    return { p, att };
+  }).sort((a, b) => b.att.length - a.att.length || a.p.name.localeCompare(b.p.name));
+  for (const { p, att } of rows) {
+    const dated = att.map((a) => ({ a, g: dateOf(a.gameId) })).sort((x, y) => (x.g?.date ?? "9999").localeCompare(y.g?.date ?? "9999"));
+    const dates = dated.map(({ a, g }) => `${g?.date ? fmtDateShort(g.date) : `(${g?.originalDateText || "no date"})`}${a.notes ? ` [${a.notes}]` : ""}`);
+    const tx = db.transactions.filter((t) => t.playerId === p.id && gids.has(t.gameId));
+    const buyIns = tx.filter((t) => t.kind !== "cash_out").reduce((s, t) => s + t.amount, 0);
+    const outs = tx.filter((t) => t.kind === "cash_out").reduce((s, t) => s + t.amount, 0);
+    const bits: string[] = [];
+    bits.push(`${p.name}${p.isHost ? " (host)" : ""}${p.aliases.length ? ` (also written: ${p.aliases.join(", ")})` : ""}: ${att.length} game${att.length === 1 ? "" : "s"}${gs.length ? ` (${Math.round((att.length / gs.length) * 100)}% of nights)` : ""}`);
+    if (dates.length) bits.push(`  Dates: ${dates.join(", ")}`);
+    if (tx.length) bits.push(`  Buy-ins ${money(buyIns)}, cash-outs ${money(outs)}, result ${money(outs - buyIns)} (live games only)`);
+    if (p.notes) bits.push(`  Notes: ${p.notes}`);
+    L.push(...bits);
+  }
+  L.push("");
+  const allMissing = gs.flatMap((g) => missingInfo(db, g).map((m) => `${g.date ? fmtDateShort(g.date) : g.originalDateText || "no date"}: ${m.label}`));
+  L.push(`MISSING INFORMATION (${allMissing.length})`);
+  L.push(allMissing.length ? allMissing.join("; ") : "none");
   return L.join("\n");
 }

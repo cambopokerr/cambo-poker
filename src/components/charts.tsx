@@ -35,7 +35,8 @@ export function Legend({ items }: { items: Array<{ label: string; color: string 
   );
 }
 
-export const DONUT = ["#1e9bff", "#4fb8ff", "#c9d4e5", "#3b6fb6", "#8ea4c4", "#67e8f9"];
+/** Six clearly different hues that still sit on the navy theme: blue, cyan, amber, violet, rose, green. */
+export const DONUT = ["#1e9bff", "#67e8f9", "#fbbf24", "#a78bfa", "#fb7185", "#34d399"];
 
 /** Plain-SVG donut: one stroked arc per slice, no chart library involved. */
 export function Donut({ data, total, label }: { data: Array<{ name: string; value: number }>; total: number; label: string }) {

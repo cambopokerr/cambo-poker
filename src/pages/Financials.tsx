@@ -56,7 +56,8 @@ export default function Financials() {
       const key = e.category === "food" ? (/gyg|takeaway/.test(txt) ? "GYG / takeaway" : "Food") : e.category === "drinks" ? (/snack/.test(txt) ? "Snacks" : "Drinks") : "Other";
       m.set(key, (m.get(key) ?? 0) + (e.amount ?? 0));
     }
-    return [...m.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    // Biggest first; "Other" always last so the named categories read in order.
+    return [...m.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => Number(a.name === "Other") - Number(b.name === "Other") || b.value - a.value);
   }, [expenseEntries]);
 
   const dealerRows = useMemo(() => {
