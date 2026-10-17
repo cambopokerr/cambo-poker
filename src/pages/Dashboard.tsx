@@ -4,7 +4,7 @@ import { useStore } from "../data/store";
 import { computeGame, computeTotals, hourlyTotals, missingInfo, monthlySeries } from "../lib/finance";
 import { fmtDateShort, fmtMonth, money } from "../lib/format";
 import { Card, StatusBadge } from "../components/ui";
-import { IcoCalendar, IcoChevron, IcoChip, IcoCoins, IcoDealer, IcoFinancials, IcoPlayers, IcoPlus, IcoClock } from "../components/icons";
+import { IcoCalendar, IcoChevron, IcoChip, IcoCoins, IcoDealer, IcoFinancials, IcoPlus, IcoClock } from "../components/icons";
 import { C, Legend, TrendChart, type TrendPoint } from "../components/charts";
 import { LogGameModal, liveGame } from "../components/StartGame";
 
@@ -26,18 +26,6 @@ export default function Dashboard() {
   const hr = useMemo(() => hourlyTotals(db), [db]);
   const missingGames = useMemo(() => db.games.filter((g) => missingInfo(db, g).length), [db]);
 
-  // Dealer assignment: any combination: one owner, both owners alternating, and/or an outsourced dealer.
-  const [picked, setPicked] = useState<Record<string, boolean>>({});
-  const [earned, setEarned] = useState<Record<string, string>>({});
-  const [dealerName, setDealerName] = useState("");
-  const togglePick = (k: string) => setPicked((x) => ({ ...x, [k]: !x[k] }));
-  const chosen = [...hosts.filter((h) => picked[h]).map((h) => ({ type: "host" as const, name: h, amount: earned[h] ?? "" })), ...(picked.other ? [{ type: "other" as const, name: dealerName.trim(), amount: earned.other ?? "" }] : [])];
-  const alternating = hosts.filter((h) => picked[h]).length > 1;
-  const startLog = () => {
-    const p = new URLSearchParams();
-    if (chosen.length) p.set("dealers", JSON.stringify(chosen));
-    nav(`/games/new${chosen.length ? `?${p.toString()}` : ""}`);
-  };
 
   return (
     <>
@@ -81,7 +69,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-2-1 mt">
+      <div className="mt">
         <Card title={<span className="serif-title">Recent Sessions</span>} actions={<Link to="/games">View All</Link>}>
           <div className="list only-mobile">
             {recent.map((g) => { const f = computeGame(db, g); const n = db.attendance.filter((a) => a.gameId === g.id).length; return (
@@ -116,38 +104,6 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
-        </Card>
-
-        <Card title={<span className="serif-title">Dealer Assignment</span>}>
-          <div className="field-label" style={{ marginBottom: 8 }}><IcoCalendar style={{ width: 14, height: 14, verticalAlign: -2, marginRight: 6 }} />Who is dealing the next game? Tick everyone who will. Owners can alternate.</div>
-          <div className="radio-list">
-            {hosts.map((h) => (
-              <div key={h} className={`radio-row ${picked[h] ? "on" : ""}`}>
-                <label className="radio-main">
-                  <span className="ini" style={{ background: "#1a2a44" }}>{h[0]}</span>
-                  <span>{h} <span className="muted">(Owner)</span></span>
-                  <input type="checkbox" checked={!!picked[h]} onChange={() => togglePick(h)} />
-                </label>
-                {picked[h] && <div className="input-money radio-extra"><span>$</span><input className="input" inputMode="decimal" value={earned[h] ?? ""} onChange={(e) => setEarned((x) => ({ ...x, [h]: e.target.value }))} placeholder={`${h}'s dealer earnings (AUD)`} aria-label={`${h} dealer earnings`} /></div>}
-              </div>
-            ))}
-            <div className={`radio-row ${picked.other ? "on" : ""}`}>
-              <label className="radio-main">
-                <span className="ini" style={{ background: "transparent", color: "var(--text-dim)" }}><IcoPlayers /></span>
-                <span>Outsourced Dealer</span>
-                <input type="checkbox" checked={!!picked.other} onChange={() => togglePick("other")} />
-              </label>
-              {picked.other && (
-                <div className="radio-extra stack-sm">
-                  <input className="input" value={dealerName} onChange={(e) => setDealerName(e.target.value)} placeholder="Dealer name" aria-label="Dealer name" />
-                  <div className="input-money"><span>$</span><input className="input" inputMode="decimal" value={earned.other ?? ""} onChange={(e) => setEarned((x) => ({ ...x, other: e.target.value }))} placeholder="Dealer earnings (AUD)" aria-label="Outsourced dealer earnings" /></div>
-                </div>
-              )}
-            </div>
-          </div>
-          {alternating && <p className="rule mt-sm" style={{ color: "var(--blue-bright)" }}>Alternating: {hosts.filter((h) => picked[h]).join(" & ")} will share the dealing. Each gets their own earnings line.</p>}
-          <button className="btn btn-primary mt-sm" style={{ width: "100%" }} onClick={startLog}>{chosen.length ? `Log a Game with ${chosen.length === 1 ? "this dealer" : `${chosen.length} dealers`}` : "Log a Game (no dealer yet)"}</button>
-          <p className="rule" style={{ marginTop: 10 }}>Opens the New Game form with the dealer lines filled in. Dealer earnings are recorded, not deducted, unless you tick “paid from rake”.</p>
         </Card>
       </div>
 
