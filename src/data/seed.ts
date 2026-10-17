@@ -249,12 +249,12 @@ const NIGHTS: N[] = [
     source: "Saturday list @2pm 12/09/26 9pm finish\n• Bun\n• Karen\n• Puru\n• Tom\n• Jacob\n• Phil\n• Seth\n• Sri\n\nRake: $2188\n1122.5 each",
   },
   {
-    date: "2026-10-25", odt: "fri 5pm 25/10/26", start: "5pm", finish: "1am", dealer: "Hosts",
+    date: "2026-09-25", odt: "fri 5pm 25/10/26", start: "5pm", finish: "1am", dealer: "Hosts",
     players: ["Bun", "Hussey", "Tom", "Lucas", "Max", "Jake", "Diego"],
     entries: [rake(1518, "1518 rake"),
       adj(492, "dealer: 492", "needs_review", "Assumed to be dealer tips kept by the hosts, as the next game's note adds it to the total.")],
     dist: each(996, "$996 each profit", "needs_review"),
-    review: ["Date written as 25/10/26: that is a Sunday and after this import was made; the note says 'fri'. Possibly 25/09/26. Date kept as written.",
+    review: ["Date written as 25/10/26 (a Sunday, note says fri). Corrected to 25/09/26, a Friday, by the hosts on 17 Oct 2026.",
       "'dealer: 492': assumed to be tips kept by the hosts (1518 + 492 − 18 ≈ 2 × 996); $18 unexplained."],
     source: "Poker fri 5pm 25/10/26 1am finish\nBun\nHussey\nTom\nLucas\nMax\nJake\nDiego\n\n1518 rake , dealer: 492, $996 each profit",
   },
@@ -263,7 +263,7 @@ const NIGHTS: N[] = [
     players: ["Bun", "Hussey", "Tom", "Lucas", "Diego", "Dev", "Sri", "Puru", "Becker"],
     entries: [rake(1557, "Rake $1557"), adj(498, "498 (Total $2055)", "verified", "Note adds it to the rake: 1557 + 498 = 2055."), food(62, "-62 food")],
     dist: each(996, "$996 each"),
-    review: ["No date on this note. It follows the Friday 25/10 note, so it is probably the next day: confirm."],
+    review: ["No date on this note. It follows the Friday 25/09 note, so it is probably the next day: confirm."],
     source: "Poker sat 2pm finish 9:10pm\nBun\nHussey\nTom\nLucas\nDiego\nDev\nSri\nPuru\nBecker\n\nRake $1557 , 498\nTotal $2055 -62 food = 1993\n\n$996 each",
   },
 ];
