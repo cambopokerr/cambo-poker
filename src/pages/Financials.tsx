@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "../data/store";
 import { attendanceLeaders, computeGame, computeTotals, gameSeries, hourly, hourlyTotals, monthlySeries } from "../lib/finance";
-import { fmtDateShort, fmtMonth, money, signedMoney } from "../lib/format";
+import { fmtDateShort, fmtHours, fmtMonth, money, signedMoney } from "../lib/format";
 import { download, toCSV } from "../lib/csv";
 import { buildTextReport, exportExcel } from "../lib/export";
 import { CATEGORY_LABEL, STATUS_LABEL, type Category } from "../types";
@@ -179,12 +179,13 @@ export default function Financials() {
                 <button className="btn" onClick={exportGames}>Export CSV</button>
               </div>
               <div className="table-wrap"><table className="table">
-                <thead><tr><th>Date</th><th className="num">Players</th><th className="num">Rake (AUD)</th><th className="num">Expenses</th><th className="num">Dealer</th><th className="num">Net profit</th><th className="num" title="Net profit per hour of the night">$/hour</th><th className="num" title="Each host's share per hour">Each /h</th><th className="num">Recorded</th><th className="num">Variance</th><th>Status</th><th className="td-chev" /></tr></thead>
+                <thead><tr><th>Date</th><th className="num">Players</th><th className="num">Hours</th><th className="num">Rake (AUD)</th><th className="num">Expenses</th><th className="num">Dealer</th><th className="num">Net profit</th><th className="num" title="Net profit per hour of the night">$/hour</th><th className="num" title="Each host's share per hour">Each /h</th><th className="num">Recorded</th><th className="num">Variance</th><th>Status</th><th className="td-chev" /></tr></thead>
                 <tbody>
                   {tableRows.map(({ g, f, players }) => (
                     <tr key={g.id} className="clickable" onClick={() => nav(`/games/${g.id}`)}>
                       <td className="date-cell"><span className="row-link">{g.date == null ? "No date" : fmtDateShort(g.date)}</span>{g.date == null && g.originalDateText && <div className="faint date-note" title={g.originalDateText}>{g.originalDateText}</div>}</td>
                       <td className="num">{players}</td>
+                      <td className="num">{g.durationHours != null ? fmtHours(g.durationHours) : <span className="faint">–</span>}</td>
                       <td className="num">{f.hasRake ? money(f.grossRake, true) : <span className="neg">?</span>}</td>
                       <td className="num">{f.expenses ? money(f.expenses, true) : "–"}</td>
                       <td className="num">{f.dealerEarnings ? money(f.dealerEarnings, true) : "–"}</td>

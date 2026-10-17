@@ -23,7 +23,7 @@ export default function GameTable({ games, compact = false }: { games: Game[]; c
             <tr>
               <th>Date</th>
               {!compact && <th>Start</th>}
-              {!compact && <th>Duration</th>}
+              <th className={compact ? "num" : ""}>{compact ? "Hours" : "Duration"}</th>
               <th className="num">Players</th>
               <th className="num">Rake (AUD)</th>
               {!compact && <th className="num">Expenses</th>}
@@ -41,7 +41,7 @@ export default function GameTable({ games, compact = false }: { games: Game[]; c
               <tr key={g.id} className="clickable" onClick={() => nav(`/games/${g.id}`)}>
                 <td className="date-cell"><span className="row-link">{g.date == null ? "No date" : fmtDateShort(g.date)}</span>{g.date == null && g.originalDateText && <div className="faint date-note" title={g.originalDateText}>{g.originalDateText}</div>}</td>
                 {!compact && <td className="muted">{g.startTime || "–"}</td>}
-                {!compact && <td className="muted">{fmtHours(g.durationHours)}</td>}
+                <td className={compact ? "num muted" : "muted"}>{fmtHours(g.durationHours)}</td>
                 <td className="num">{players}</td>
                 <td className="num">{f.hasRake ? money(f.grossRake, true) : <span className="neg">?</span>}</td>
                 {!compact && <td className="num">{f.expenses ? money(f.expenses) : <span className="faint">–</span>}</td>}
@@ -64,7 +64,7 @@ export default function GameTable({ games, compact = false }: { games: Game[]; c
             <span className="list-ico"><IcoCalendar /></span>
             <span className="list-main">
               <span className="list-title">{fmtDateShort(g.date)}{g.date == null && <span className="faint"> · {g.originalDateText}</span>}</span>
-              <span className="list-sub">{g.startTime || "–"} · {players} players{hr ? ` · ${money(hr.netPerHour, true)}/h` : ""}</span>
+              <span className="list-sub">{g.startTime || "–"}{g.durationHours != null ? ` · ${fmtHours(g.durationHours)}` : ""} · {players} players{hr ? ` · ${money(hr.netPerHour, true)}/h` : ""}</span>
             </span>
             <span className="list-side">
               <span className="list-amt">{f.hasRake ? money(f.grossRake, true) : "?"}</span>
