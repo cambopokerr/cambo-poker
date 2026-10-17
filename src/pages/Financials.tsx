@@ -4,6 +4,7 @@ import { useStore } from "../data/store";
 import { attendanceLeaders, computeGame, computeTotals, gameSeries, hourlyTotals, monthlySeries } from "../lib/finance";
 import { fmtDateShort, fmtMonth, money, signedMoney } from "../lib/format";
 import { download, toCSV } from "../lib/csv";
+import { buildTextReport, exportExcel } from "../lib/export";
 import { CATEGORY_LABEL, STATUS_LABEL, type Category } from "../types";
 import { Card, Search, Stat, StatusBadge, Tabs } from "../components/ui";
 import { IcoChevron, IcoChip, IcoCoins, IcoDealer, IcoFinancials, IcoFood } from "../components/icons";
@@ -20,6 +21,9 @@ export default function Financials() {
   const [tab, setTab] = useState<Tab>("games");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
+  const [report, setReport] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const games = useMemo(() => db.games.filter((g) => {
     if (g.date == null) return !from && !to;
@@ -80,6 +84,13 @@ export default function Financials() {
   const range = from || to ? `${from || "start"}_to_${to || "latest"}` : "all";
   const cats: Category[] = ["rake", "food", "drinks", "other_expense", "adjustment", "dealer_earnings"];
 
+  const doExcel = async () => { setExporting(true); try { await exportExcel(db, games); } finally { setExporting(false); } };
+  const doText = async () => {
+    const txt = buildTextReport(db, games);
+    setReport(txt);
+    try { await navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch { setCopied(false); }
+  };
+
   const exportGames = () => download(`cambo-poker-games-${range}.csv`, toCSV(rows.map(({ g, f, players }) => ({
     date: g.date ?? "", date_as_written: g.originalDateText, start: g.startTime, finish: g.finishTime, hours: g.durationHours ?? "", players, dealer: g.dealerName,
     gross_rake: f.grossRake, adjustments: f.adjustments, food: f.food, drinks_snacks: f.drinks, other_expenses: f.otherExpense, dealer_earnings: f.dealerEarnings,
@@ -112,6 +123,17 @@ export default function Financials() {
         <Stat icon={<IcoCoins />} label="Avg profit per game" value={money(t.reconciledGames ? t.netVerified / t.reconciledGames : 0, true)} sub={`From ${t.reconciledGames} verified games`} />
         <Stat icon={<IcoClock />} label="Profit per hour" value={hr.games ? money(hr.netPerHour, true) : "–"} sub={hr.games ? `${hosts.map((h) => `${h} ${money(hr.perHost[h]?.perHour ?? 0, true)}/h`).join(" · ")}${hr.excluded ? ` · ${hr.excluded} without hours left out` : ""}` : "Add finish times to see this"} />
       </div>
+
+      <Card className="mt" title="Export for AI analysis" actions={<span className="faint">{games.length} games{from || to ? " in range" : ""}</span>}>
+        <p className="rule">Take the data out to analyse it elsewhere. Excel gives one sheet each for games, players, attendance, money lines, payouts and buy-ins. Text is a readable report you can paste straight into an AI chat and ask questions about.</p>
+        <div className="card-actions" style={{ marginTop: 10 }}>
+          <button className="btn btn-primary" onClick={() => void doExcel()} disabled={exporting}>{exporting ? "Preparing…" : "Download Excel (.xlsx)"}</button>
+          <button className="btn" onClick={() => void doText()}>{copied ? "Copied to clipboard" : "Copy text for AI"}</button>
+          {report && <button className="btn" onClick={() => download(`cambo-poker-report-${new Date().toISOString().slice(0, 10)}.txt`, report, "text/plain;charset=utf-8")}>Download text</button>}
+          {report && <button className="btn" onClick={() => setReport(null)}>Hide</button>}
+        </div>
+        {report && <pre className="source" style={{ marginTop: 12, maxHeight: 360 }}>{report}</pre>}
+      </Card>
 
       <div className="chart-grid mt">
         <Card title="Profit per hour, by night" actions={<span className="faint">{hourlySeries.length} nights with hours</span>}>
