@@ -113,6 +113,8 @@ export default function Financials() {
           <span className="muted">to</span>
           <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To" style={{ width: "auto" }} />
           {(from || to) && <button className="btn" onClick={() => { setFrom(""); setTo(""); }}>All time</button>}
+          <button className="btn" onClick={() => void doExcel()} disabled={exporting} title="Every game, player, money line and buy-in, one sheet each">{exporting ? "Preparing…" : "Excel"}</button>
+          <button className="btn" onClick={() => void doText()} title="Copies a full text report to paste into an AI chat">{copied ? "Copied" : "Copy for AI"}</button>
         </div>
       </div>
 
@@ -125,16 +127,11 @@ export default function Financials() {
         <Stat icon={<IcoClock />} label="Profit per hour" value={hr.games ? money(hr.netPerHour, true) : "–"} sub={hr.games ? `${hosts.map((h) => `${h} ${money(hr.perHost[h]?.perHour ?? 0, true)}/h`).join(" · ")}${hr.excluded ? ` · ${hr.excluded} without hours left out` : ""}` : "Add finish times to see this"} />
       </div>
 
-      <Card className="mt" title="Export for AI analysis" actions={<span className="faint">{games.length} games{from || to ? " in range" : ""}</span>}>
-        <p className="rule">Take the data out to analyse it elsewhere. Excel gives one sheet each for games, players, attendance, money lines, payouts and buy-ins. Text is a readable report you can paste straight into an AI chat and ask questions about.</p>
-        <div className="card-actions" style={{ marginTop: 10 }}>
-          <button className="btn btn-primary" onClick={() => void doExcel()} disabled={exporting}>{exporting ? "Preparing…" : "Download Excel (.xlsx)"}</button>
-          <button className="btn" onClick={() => void doText()}>{copied ? "Copied to clipboard" : "Copy text for AI"}</button>
-          {report && <button className="btn" onClick={() => download(`cambo-poker-report-${new Date().toISOString().slice(0, 10)}.txt`, report, "text/plain;charset=utf-8")}>Download text</button>}
-          {report && <button className="btn" onClick={() => setReport(null)}>Hide</button>}
-        </div>
-        {report && <pre className="source" style={{ marginTop: 12, maxHeight: 360 }}>{report}</pre>}
-      </Card>
+      {report && (
+        <Card className="mt" title="Text report" actions={<><button className="btn btn-sm" onClick={() => download(`cambo-poker-report-${new Date().toISOString().slice(0, 10)}.txt`, report, "text/plain;charset=utf-8")}>Download .txt</button> <button className="btn btn-sm" onClick={() => setReport(null)}>Hide</button></>}>
+          <pre className="source" style={{ maxHeight: 360 }}>{report}</pre>
+        </Card>
+      )}
 
       <div className="chart-grid mt">
         <Card title="Profit per hour, by night" actions={<span className="faint">{hourlySeries.length} nights with hours</span>}>
