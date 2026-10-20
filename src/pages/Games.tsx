@@ -60,6 +60,7 @@ export default function Games() {
       </div>
       {live && <div className="live-banner"><div><strong>Game in progress</strong> <span className="muted">· started {live.startTime}</span></div><Link className="btn btn-primary" to={`/games/${live.id}/live`}>Open live game</Link></div>}
 
+      {counts.needs_review + counts.incomplete > 0 && <p className="muted" style={{ margin: "0 0 12px" }}><Link to="/review">Open the Needs review list</Link> to go through every question with the original note beside it.</p>}
       <Segmented value={status} onChange={setStatus} options={[
         { value: "all", label: "All games", count: counts.all }, ...(counts.live ? [{ value: "live" as Filter, label: "Live", count: counts.live }] : []), { value: "reconciled" as Filter, label: "Completed", count: counts.reconciled },
         { value: "needs_review", label: "Needs review", count: counts.needs_review }, { value: "incomplete", label: "Incomplete", count: counts.incomplete },

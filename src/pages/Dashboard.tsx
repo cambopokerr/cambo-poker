@@ -44,6 +44,7 @@ export default function Dashboard() {
       </section>
 
       {live && <div className="live-banner"><div><strong>Game in progress</strong> <span className="muted">· started {live.startTime} · {db.attendance.filter((a) => a.gameId === live.id).length} seated</span></div><Link className="btn btn-primary" to={`/games/${live.id}/live`}>Open live game</Link></div>}
+      {needs > 0 && <div className="live-banner warn"><div><strong>{needs} game{needs === 1 ? " needs" : "s need"} review</strong> <span className="muted">· open questions and unconfirmed figures from the notes</span></div><Link className="btn btn-primary" to="/review">Review them</Link></div>}
       {missingGames.length > 0 && <div className="live-banner warn"><div><strong>{missingGames.length} game{missingGames.length === 1 ? " has" : "s have"} missing info</strong> <span className="muted">· dates, finish times or amounts left blank in the notes</span></div><Link className="btn btn-primary" to="/games/missing">Fill them in</Link></div>}
       {start && <LogGameModal onClose={() => setStart(false)} />}
       <div className="tiles">
