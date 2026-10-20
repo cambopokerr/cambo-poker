@@ -67,7 +67,8 @@ export interface Game {
   finishTime: string;
   /** Hours. null when neither recorded nor computable. */
   durationHours: number | null;
-  durationSource: "recorded" | "computed" | null;
+  /** recorded = hours written in the note; computed = from start and finish; estimated = usual Friday/Saturday times applied because nothing was written. */
+  durationSource: "recorded" | "computed" | "estimated" | null;
   dealerPlayerId: ID | null;
   dealerName: string;
   /** Where it was played, e.g. "Home game". Optional; imported games have none recorded. */

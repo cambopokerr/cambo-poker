@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useStore } from "../data/store";
-import { durationFromTimes, parseClock } from "../lib/finance";
+import { durationFromTimes, normaliseFinish, parseClock } from "../lib/finance";
 import { money, todayISO, uid } from "../lib/format";
 import { findPlayerByName, norm } from "../lib/names";
 import type { GameDraft } from "../lib/ai";
@@ -141,8 +141,9 @@ export default function GameForm() {
     const primaryDealer = dealers[0];
     const game: Game = {
       id: gid, date: noDate ? null : date, originalDateText: odt.trim() || (noDate ? "" : date),
-      startTime: start.trim(), finishTime: finish.trim(),
-      durationHours: recHours ?? computed, durationSource: recHours != null ? "recorded" : computed != null ? "computed" : null,
+      startTime: start.trim(), finishTime: normaliseFinish(start.trim(), finish),
+      durationHours: recHours ?? computed ?? (existing?.durationSource === "estimated" ? existing.durationHours : null),
+      durationSource: recHours != null ? "recorded" : computed != null ? "computed" : existing?.durationSource === "estimated" ? "estimated" : null,
       dealerPlayerId: primaryDealer?.dealerPlayerId ?? null, dealerName: primaryDealer ? (primaryDealer.dealerName || nameOf(primaryDealer.dealerPlayerId ?? "")) : "",
       location: location.trim() || undefined, notes: notes.trim(), sourceText: draft?.sourceText ?? existing?.sourceText ?? "", reviewNotes: reviewNotes.map((r) => r.trim()).filter(Boolean),
       status: existing?.status, startedAt: existing?.startedAt, endedAt: existing?.endedAt,

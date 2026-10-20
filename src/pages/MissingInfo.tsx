@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "../data/store";
-import { distributionsFor, durationFromTimes, entriesFor, missingInfo, parseClock } from "../lib/finance";
+import { distributionsFor, durationFromTimes, entriesFor, missingInfo, normaliseFinish, parseClock, usualTimesFor } from "../lib/finance";
 import { fmtDate, uid } from "../lib/format";
 import type { FinancialEntry, Game } from "../types";
 import { Card, Field, StatusBadge } from "../components/ui";
@@ -54,7 +54,7 @@ function GameRow({ game }: { game: Game }) {
     const next: Game = { ...game };
     if (date) { next.date = date; if (!next.originalDateText) next.originalDateText = date; }
     if (start) next.startTime = start.trim();
-    if (finish) next.finishTime = finish.trim();
+    if (finish) next.finishTime = normaliseFinish(next.startTime, finish);
     const rec = hours ? Number(hours) : null;
     const computed = next.startTime && next.finishTime ? durationFromTimes(next.startTime, next.finishTime) : null;
     if (rec != null) { next.durationHours = rec; next.durationSource = "recorded"; }
@@ -63,6 +63,20 @@ function GameRow({ game }: { game: Game }) {
     if (rake) es = [...es, { id: uid(), gameId: game.id, category: "rake", amount: Number(rake), originalText: `$${rake}`, verification: "verified", notes: "Filled in later from memory" }];
     dispatch({ type: "game:save", game: next, attendance: db.attendance.filter((a) => a.gameId === game.id), entries: es, distributions: distributionsFor(db, game.id) });
     setDate(""); setStart(""); setFinish(""); setHours(""); setRake(""); setAmounts({}); setSaved(true);
+  };
+
+  const usual = usualTimesFor(game);
+  const applyUsual = () => {
+    if (!usual) return;
+    const next: Game = { ...game };
+    if (!next.startTime) next.startTime = usual.start;
+    next.finishTime = usual.finish;
+    const d = durationFromTimes(next.startTime, next.finishTime);
+    if (d == null) return;
+    next.durationHours = d; next.durationSource = "estimated";
+    next.notes = [game.notes, `Finish time not written; ${usual.label} assumed.`].filter(Boolean).join(" ");
+    dispatch({ type: "game:save", game: next, attendance: db.attendance.filter((a) => a.gameId === game.id), entries, distributions: distributionsFor(db, game.id) });
+    setSaved(true);
   };
 
   return (
@@ -79,6 +93,7 @@ function GameRow({ game }: { game: Game }) {
             {!game.startTime && <Field label="Start time"><input className="input" value={start} onChange={(e) => setStart(e.target.value)} placeholder="5pm" /></Field>}
             <Field label={`Finish time${game.startTime ? ` (started ${game.startTime})` : ""}`}><input className="input" value={finish} onChange={(e) => setFinish(e.target.value)} placeholder="12:30am" /></Field>
             <Field label="Or hours played"><input className="input" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="6" /></Field>
+            {usual && <Field label="Or use the usual times" hint={usual.label}><button type="button" className="btn" onClick={applyUsual}>Use {game.startTime || usual.start} to {usual.finish} (estimate)</button></Field>}
           </>}
           {items.some((i) => i.kind === "rake") && <Field label="Rake (AUD)"><div className="input-money"><span>$</span><input className="input" inputMode="decimal" value={rake} onChange={(e) => setRake(e.target.value)} placeholder="0" /></div></Field>}
           {items.filter((i) => i.kind === "amount").map((i) => <Field key={i.entryId} label={`${i.label} (AUD)`}><div className="input-money"><span>$</span><input className="input" inputMode="decimal" value={amounts[i.entryId!] ?? ""} onChange={(e) => setAmounts((x) => ({ ...x, [i.entryId!]: e.target.value }))} placeholder="0" /></div></Field>)}

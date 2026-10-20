@@ -38,7 +38,7 @@ export default function GameDetails() {
           <div className="crumbs"><Link to="/games">‹ Games</Link></div>
           <h1 style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>{fmtDate(game.date)} <StatusBadge status={f.status} /></h1>
           <div className="sub">
-            {game.startTime || "start ?"}{game.finishTime ? ` – ${game.finishTime}` : ""} ({fmtHours(game.durationHours)}{game.durationSource === "computed" ? ", from times" : ""}) · {att.length} players · Dealer {dealer}
+            {game.startTime || "start ?"}{game.finishTime ? ` – ${game.finishTime}` : ""} ({fmtHours(game.durationHours)}{game.durationSource === "computed" ? ", from times" : game.durationSource === "estimated" ? ", estimated" : ""}) · {att.length} players · Dealer {dealer}
             {game.originalDateText && game.originalDateText !== game.date && <> · written as “{game.originalDateText}”</>}
           </div>
         </div>
@@ -97,7 +97,7 @@ export default function GameDetails() {
               {hr ? (
                 <>
                   <dl className="kv">
-                    <dt>Night length</dt><dd>{fmtHours(hr.hours)}{hr.source === "computed" ? <span className="faint"> · from start and finish</span> : null}</dd>
+                    <dt>Night length</dt><dd>{fmtHours(hr.hours)}{hr.source === "computed" ? <span className="faint"> · from start and finish</span> : hr.source === "estimated" ? <span className="faint"> · estimated from the usual {game.date && new Date(game.date + "T12:00:00").getDay() === 5 ? "Friday" : "Saturday"} times</span> : null}</dd>
                     <dt><strong>Profit per hour</strong></dt><dd><strong>{money(hr.netPerHour)}</strong></dd>
                     {hosts.map((h) => <Fragment key={h}><dt>{h} per hour</dt><dd>{money(hr.perHost[h].perHour)}<span className="faint"> · dealt {fmtHours(hr.perHost[h].hoursDealt)}{hr.perHost[h].tips ? ` · tips ${money(hr.perHost[h].tipsPerHour)}/h` : ""}</span></dd></Fragment>)}
                   </dl>

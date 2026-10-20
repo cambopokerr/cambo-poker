@@ -214,11 +214,42 @@ export function parseClock(t: string): number | null {
 
 /** Duration in hours from start/finish strings, assuming finish after start (crossing midnight allowed). */
 export function durationFromTimes(start: string, finish: string): number | null {
-  const s = parseClock(start), f = parseClock(finish);
+  const s = parseClock(start), f = resolveFinish(start, finish);
   if (s == null || f == null) return null;
   let d = f - s;
   if (d <= 0) d += 24 * 60;
   return Math.round((d / 60) * 100) / 100;
+}
+
+const LONGEST_NIGHT_MIN = 14 * 60;
+
+/**
+ * A finish time typed without am/pm ("9", "9:45", "12") is read as the evening/after-midnight reading
+ * that gives a plausible night length (up to 14 h) from the start time: "9" after a 2pm start is 9pm,
+ * "1" after a 5pm start is 1am. Times with am/pm are taken as written.
+ */
+export function resolveFinish(start: string, finish: string): number | null {
+  const raw = finish.trim().toLowerCase();
+  if (/(am|pm)$/.test(raw)) return parseClock(raw);
+  const bare = parseClock(raw);
+  const s = parseClock(start);
+  if (bare == null) return null;
+  if (s == null || bare >= 13 * 60) return bare;
+  const h = Math.floor(bare / 60), min = bare % 60;
+  const candidates = [((h % 12) + 12) * 60 + min, (h % 12) * 60 + min]; // pm first, then am (12 → 12pm then 12am)
+  for (const c of candidates) { let d = c - s; if (d <= 0) d += 24 * 60; if (d > 0 && d <= LONGEST_NIGHT_MIN) return c; }
+  return candidates[0];
+}
+
+/** "9:45" typed after a 6pm start becomes "9:45pm" so the record reads unambiguously. */
+export function normaliseFinish(start: string, finish: string): string {
+  const raw = finish.trim();
+  if (!raw || /(am|pm)$/i.test(raw)) return raw;
+  const m = resolveFinish(start, raw);
+  if (m == null) return raw;
+  const h24 = Math.floor(m / 60), min = m % 60;
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h}${min ? ":" + String(min).padStart(2, "0") : ""}${h24 < 12 ? "am" : "pm"}`;
 }
 
 /** Buy-ins, rebuys, cash-outs and net per player for one game. A player is "in play" until their latest movement is a cash-out. */
@@ -261,7 +292,7 @@ export function playerLifetime(db: DB, playerId: string): { games: number; buyIn
 export interface HostHourly { share: number; hoursDealt: number; perHour: number; tips: number; tipsPerHour: number }
 export interface Hourly {
   hours: number;
-  source: "recorded" | "computed";
+  source: "recorded" | "computed" | "estimated";
   /** Net distributable per hour of the night. */
   netPerHour: number;
   /** true when dealingHours was set by hand for this game; false = alternated, half each. */
@@ -359,4 +390,23 @@ export function missingInfo(db: DB, game: Game): MissingItem[] {
   if (!rake.length) out.push({ kind: "rake", label: "Rake" });
   for (const e of es) if (e.amount == null) out.push({ kind: "amount", label: e.category === "rake" ? "Rake" : `${CATEGORY_LABEL[e.category]}${e.originalText ? ` (“${e.originalText}”)` : ""}`, entryId: e.id });
   return out;
+}
+
+
+/* ---------- usual times ---------- */
+
+/**
+ * The hosts' standing pattern, used only when a night has no finish time and no recorded hours:
+ * Friday games run 5pm to about midnight; Saturday games 2pm to somewhere between 9pm and midnight (10:30pm taken as the middle).
+ * Any game that uses this is marked "estimated" so it can be told apart from recorded facts.
+ */
+export const USUAL_TIMES: Record<number, { start: string; finish: string; label: string }> = {
+  5: { start: "5pm", finish: "12am", label: "Friday: 5pm to midnight" },
+  6: { start: "2pm", finish: "10:30pm", label: "Saturday: 2pm to about 10:30pm (9pm to midnight range)" },
+};
+
+export function usualTimesFor(game: Game): { start: string; finish: string; label: string } | null {
+  if (!game.date) return null;
+  const [y, m, d] = game.date.split("-").map(Number);
+  return USUAL_TIMES[new Date(y, m - 1, d).getDay()] ?? null;
 }
